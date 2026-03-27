@@ -1,0 +1,2578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Echjay Industries — Skill Management ERP</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *,body{font-family:'IBM Plex Sans',sans-serif;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:#F1F5F9;}
+  ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
+  .nav-item{transition:background 0.1s,color 0.1s;border-right:3px solid transparent;}
+  .nav-item.active{background:#EFF6FF;color:#2563EB;border-right-color:#2563EB;font-weight:600;}
+  .nav-item:not(.active):hover{background:#F8FAFC;color:#374151;}
+  .drawer-overlay{opacity:0;pointer-events:none;transition:opacity 0.2s;}
+  .drawer-overlay.open{opacity:1;pointer-events:all;}
+  .drawer-panel{transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);}
+  .drawer-panel.open{transform:translateX(0);}
+  .skill-cell{min-width:76px;max-width:76px;}
+  .table-row:hover{background:#F8FAFC;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .fade-up{animation:fadeUp 0.18s ease both;}
+  .tab-btn{border-bottom:2px solid transparent;transition:border-color 0.15s,color 0.15s;}
+  .tab-btn.active{border-bottom-color:#2563EB;color:#2563EB;font-weight:600;}
+  .tab-btn:not(.active){color:#6B7280;}
+  .tab-btn:not(.active):hover{color:#374151;}
+  input,select,textarea{outline:none;font-family:inherit;}
+  input:focus,select:focus,textarea:focus{border-color:#2563EB!important;box-shadow:0 0 0 3px rgba(37,99,235,0.1);}
+</style>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          primary: '#2563EB',
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="bg-gray-50">
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useCallback,useRef,useEffect,useMemo} = React;
+
+const SERVER = "";
+
+// ─── DATA ──────────────────────────────────────────────────────────────────
+const INITIAL_USERS = [
+  { username: "admin", password: "123", role: "admin", department: "All", name: "Admin Setup", designation: "System Administrator" },
+  { username: "production", password: "123", role: "owner", department: "Hot Forging", name: "Meena Shah", designation: "GM - Production" }
+];
+
+const INITIAL_EMPLOYEES = [
+  {id:"E001",cardNo:"C-001",name:"Rajesh Kumar",dob:"1975-03-15",designation:"Managing Director",department:"Administration",doj:"2005-01-10",reportsTo:null,photo:null,
+   responsibility:"Overall strategic direction, company growth, stakeholder relations, board-level decisions and annual planning cycles.",
+   accountability:"Company performance, P&L ownership, regulatory compliance, and long-term sustainability of operations.",
+   authority:"Final authority on all company decisions, budget approvals above Rs.50L, hiring of senior management team.",
+   skills:[{id:"s1",name:"Leadership & Vision",required:5,current:5,trainings:[]},{id:"s2",name:"Strategic Planning",required:5,current:4,trainings:[{topic:"Strategy Refresh",date:"2024-01-15",trainer:"External",type:"Workshop",pass:true,nextDate:null}]}],team:["E002","E003","E004"]},
+  {id:"E002",cardNo:"C-002",name:"Meena Shah",dob:"1980-07-22",designation:"GM - Production",department:"Hot Forging",doj:"2008-04-01",reportsTo:"E001",photo:null,
+   responsibility:"Oversee all production operations, manage production schedules, ensure quality output and OEE targets are consistently met.",
+   accountability:"Production KPIs, machine utilization rates, team performance metrics, and on-time delivery commitments to customers.",
+   authority:"Approve production plans, authorize overtime, approve purchases up to Rs.5L, issue work stoppages for safety.",
+   skills:[{id:"s3",name:"Production Planning",required:5,current:4,trainings:[]},{id:"s4",name:"CNC Machine Operation",required:4,current:3,trainings:[{topic:"CNC Advanced",date:"2024-03-10",trainer:"Internal",type:"On-the-Job",pass:false,nextDate:"2024-06-10"}]},{id:"s5",name:"Quality Management",required:4,current:4,trainings:[]}],team:["E005","E006","E007"]},
+  {id:"E003",cardNo:"C-003",name:"Priya Patel",dob:"1983-11-30",designation:"HR Manager",department:"HR",doj:"2010-06-15",reportsTo:"E001",photo:null,
+   responsibility:"Manage full HR lifecycle including recruitment, onboarding, payroll processing, employee engagement, and statutory compliance.",
+   accountability:"HR metrics such as attrition rate, training completion percentage, recruitment TAT, and all HR compliance obligations.",
+   authority:"Approve employee leave, issue offer and appointment letters, conduct performance appraisals up to manager level.",
+   skills:[{id:"s6",name:"Recruitment & Selection",required:5,current:5,trainings:[]},{id:"s7",name:"Labor Law & Compliance",required:4,current:3,trainings:[{topic:"Labor Law Update 2024",date:"2024-02-20",trainer:"External",type:"Workshop",pass:true,nextDate:null}]}],team:["E008","E009"]},
+  {id:"E004",cardNo:"C-004",name:"Amit Trivedi",dob:"1978-05-18",designation:"Finance Controller",department:"Administration",doj:"2009-09-01",reportsTo:"E001",photo:null,
+   responsibility:"Manage financial reporting, budgeting, cash flow management, statutory audits, and enterprise-wide cost control initiatives.",
+   accountability:"Financial statement accuracy, audit readiness, full tax compliance, and adherence to approved budgets across departments.",
+   authority:"Authorize payments up to Rs.10L, sign all financial documents, approve employee expense claims.",
+   skills:[{id:"s8",name:"Financial Reporting",required:5,current:5,trainings:[]},{id:"s9",name:"SAP Finance Module",required:4,current:3,trainings:[]}],team:["E010"]},
+  {id:"E005",cardNo:"C-005",name:"Suresh Yadav",dob:"1985-02-14",designation:"Production Supervisor",department:"CFU 1600T",doj:"2012-03-20",reportsTo:"E002",photo:null,
+   responsibility:"Supervise daily production shift activities, manage shift team attendance and discipline, ensure production targets are achieved every shift.",
+   accountability:"Shift output quantity and quality, machine downtime reporting, scrap generation reduction, and team safety compliance.",
+   authority:"Issue work orders to operators, approve minor maintenance requests, manage shift attendance records.",
+   skills:[{id:"s10",name:"CNC Machine Operation",required:5,current:4,trainings:[]},{id:"s11",name:"Lean Manufacturing",required:4,current:2,trainings:[{topic:"Lean Basics",date:"2024-04-05",trainer:"Internal",type:"Classroom",pass:false,nextDate:"2024-07-05"}]},{id:"s12",name:"5S Implementation",required:4,current:3,trainings:[]}],team:["E011","E012"]},
+  {id:"E006",cardNo:"C-006",name:"Kavita Mehta",dob:"1990-08-25",designation:"Quality Engineer",department:"Quality",doj:"2015-07-01",reportsTo:"E002",photo:null,
+   responsibility:"Lead quality assurance activities, conduct audits, manage non-conformities, and drive continuous improvement projects.",
+   accountability:"First pass yield percentage, customer rejection and return rate, ISO 9001 documentation currency and audit readiness.",
+   authority:"Place hold on non-conforming material, raise NCRs against suppliers and production, approve final inspection reports.",
+   skills:[{id:"s13",name:"SPC Techniques",required:4,current:4,trainings:[]},{id:"s14",name:"FMEA & Control Plans",required:4,current:3,trainings:[]},{id:"s15",name:"Measurement Systems (MSA)",required:5,current:4,trainings:[]}],team:[]},
+  {id:"E007",cardNo:"C-007",name:"Ravi Solanki",dob:"1987-12-10",designation:"Maintenance Engineer",department:"Maintenance",doj:"2013-11-15",reportsTo:"E002",photo:null,
+   responsibility:"Plan and execute preventive and corrective maintenance of all plant machinery, utilities, and infrastructure.",
+   accountability:"Machine availability percentage, MTBF and MTTR targets, spare parts inventory optimisation, and zero safety incidents.",
+   authority:"Authorize emergency breakdown repairs, engage maintenance contractors, approve spare parts purchase up to Rs.50K.",
+   skills:[{id:"s16",name:"Hydraulics & Pneumatics",required:5,current:4,trainings:[]},{id:"s17",name:"Electrical Maintenance",required:4,current:3,trainings:[]},{id:"s18",name:"PLC Programming",required:3,current:2,trainings:[{topic:"PLC Siemens S7",date:"2024-05-01",trainer:"External",type:"Workshop",pass:false,nextDate:"2024-08-01"}]}],team:["E013"]},
+  {id:"E008",cardNo:"C-008",name:"Neha Joshi",dob:"1992-04-05",designation:"HR Executive",department:"HR",doj:"2018-01-08",reportsTo:"E003",photo:null,
+   responsibility:"Handle recruitment coordination, employee onboarding and induction, HR documentation maintenance, and employee queries resolution.",
+   accountability:"Recruitment turnaround time, onboarding quality score, accuracy of HR records and documentation.",
+   authority:"Coordinate with candidates and arrange interviews, issue appointment letters with HR Manager approval.",
+   skills:[{id:"s19",name:"Recruitment Process",required:4,current:3,trainings:[]},{id:"s20",name:"HRMS Software",required:4,current:4,trainings:[]}],team:[]},
+  {id:"E009",cardNo:"C-009",name:"Dinesh Parmar",dob:"1988-09-17",designation:"Training Coordinator",department:"HR",doj:"2016-05-20",reportsTo:"E003",photo:null,
+   responsibility:"Plan and coordinate all internal and external training programs, maintain the company training matrix, track training effectiveness.",
+   accountability:"Training hours per employee per year, training effectiveness scores, skill gap closure rate, and training budget utilization.",
+   authority:"Approve training venues, coordinate with external training providers, manage training budget up to Rs.2L.",
+   skills:[{id:"s21",name:"Training Need Analysis",required:5,current:4,trainings:[]},{id:"s22",name:"Content Development",required:4,current:3,trainings:[]}],team:[]},
+  {id:"E010",cardNo:"C-010",name:"Sonal Kapoor",dob:"1991-06-28",designation:"Accounts Executive",department:"Administration",doj:"2019-03-11",reportsTo:"E004",photo:null,
+   responsibility:"Handle day-to-day accounting entries, invoice processing and verification, bank reconciliation, and monthly GST filings.",
+   accountability:"Accuracy of books of accounts, timeliness of statutory filings, vendor payment schedule adherence.",
+   authority:"Process vendor payments as authorized, prepare payment vouchers, maintain petty cash register.",
+   skills:[{id:"s23",name:"Tally ERP",required:5,current:5,trainings:[]},{id:"s24",name:"GST Compliance",required:4,current:3,trainings:[]}],team:[]},
+  {id:"E011",cardNo:"C-011",name:"Mahesh Chavda",dob:"1989-01-19",designation:"CNC Operator - Senior",department:"2121 CNC",doj:"2014-08-04",reportsTo:"E005",photo:null,
+   responsibility:"Operate CNC turning and milling centers, perform job setup, conduct in-process dimensional inspection, and mentor junior operators.",
+   accountability:"Component dimensional accuracy, cycle time target adherence, machine upkeep and daily cleaning schedule.",
+   authority:"Make minor machine offset adjustments, raise maintenance requests, reject defective raw material.",
+   skills:[{id:"s25",name:"CNC Machine Operation",required:5,current:4,trainings:[]},{id:"s26",name:"Blueprint Reading",required:4,current:4,trainings:[]},{id:"s27",name:"Vernier & Micrometer",required:5,current:5,trainings:[]}],team:[]},
+  {id:"E012",cardNo:"C-012",name:"Bharat Prajapati",dob:"1993-10-07",designation:"CNC Operator - Junior",department:"2121 CNC",doj:"2021-02-15",reportsTo:"E005",photo:null,
+   responsibility:"Assist in CNC machine operations, perform component loading and unloading, conduct basic dimensional inspection of output parts.",
+   accountability:"Output quantity per shift, zero damage to components, maintain workstation cleanliness and 5S standards.",
+   authority:"Report machine abnormalities to supervisor, suggest process improvements.",
+   skills:[{id:"s28",name:"CNC Machine Operation",required:5,current:2,trainings:[{topic:"CNC Basics",date:"2024-03-20",trainer:"Internal",type:"On-the-Job",pass:false,nextDate:"2024-09-20"}]},{id:"s29",name:"Blueprint Reading",required:3,current:2,trainings:[]},{id:"s30",name:"5S Implementation",required:4,current:3,trainings:[]}],team:[]},
+  {id:"E013",cardNo:"C-013",name:"Jigar Makwana",dob:"1990-03-23",designation:"Electrician",department:"Maintenance",doj:"2017-10-01",reportsTo:"E007",photo:null,
+   responsibility:"Handle all electrical maintenance activities including panel work, wiring, motor replacement, and plant-wide electrical safety audits.",
+   accountability:"Electrical system uptime, adherence to electrical safety norms, energy consumption monitoring.",
+   authority:"Isolate electrical systems for safe maintenance work, raise electrical material purchase requests.",
+   skills:[{id:"s31",name:"Electrical Maintenance",required:5,current:4,trainings:[]},{id:"s32",name:"PLC Programming",required:3,current:1,trainings:[{topic:"PLC Basics",date:"2024-01-08",trainer:"External",type:"Classroom",pass:false,nextDate:"2024-07-08"}]},{id:"s33",name:"Electrical Safety",required:5,current:4,trainings:[]}],team:[]}
+];
+
+const DEPARTMENTS = ["Administration","Canteen","Civil","CFU 1600T","CFU 900T","Cutting","EDD","EDP","Eston CNC","Fabrication","Fettling","Finish Goods","General Store","Heat Treatment","Hot Forging","Hot Rolling Line","Housekeeping","HR","Maintenance","PPC","Quality","Ring Rolling","Safety","Scrap","Security","Tool Room","VW Cell","Zirl Cell","2121 CNC","2121 Line"];
+
+const DEPT_COLOR = {
+  "Administration":"#6366f1","HR":"#ec4899","Hot Forging":"#0891b2","CFU 1600T":"#f97316",
+  "Quality":"#16a34a","Maintenance":"#14b8a6","2121 CNC":"#0284c7","Administration":"#6366f1"
+};
+function getDC(dept) { return DEPT_COLOR[dept]||"#64748B"; }
+function initials(name) { return (name||"").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(); }
+function fmtDate(d) { if(!d) return "—"; return new Date(d).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}); }
+function getGap(emp) {
+  const sk = emp.skills||[];
+  const gap = sk.reduce((s,x)=>s+Math.max(0,x.required-x.current),0);
+  const tot = sk.reduce((s,x)=>s+x.required,0);
+  return {gap, tot, pct: tot>0?Math.round(gap/tot*100):0};
+}
+function isOverdue(dateStr) { if(!dateStr) return false; return new Date(dateStr)<new Date(); }
+
+// Training workflow status
+// status: "planned" | "evidence_done" | "evaluated"
+function getTStatus(t) {
+  if(!t) return "planned";
+  if(t.pass===true||t.pass===false) return "evaluated";
+  if(t.evidence) return "evidence_done";
+  return "planned";
+}
+function isTodayOrPast(dateStr) { if(!dateStr) return false; return new Date(dateStr)<=new Date(); }
+
+// ─── UTILS ─────────────────────────────────────────────────────────────────
+function compressImage(file, callback) {
+  if(!file.type.startsWith("image/")) {
+    if(file.size > 1.5 * 1024 * 1024) { alert("Document is too large (Max 1.5MB)."); callback(null); return; }
+    const r = new FileReader();
+    r.onload = e => callback({name:file.name, url:e.target.result});
+    r.readAsDataURL(file);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement("canvas");
+      let w = img.width, h = img.height;
+      if(w > 1200) { h *= 1200/w; w = 1200; }
+      if(h > 1200) { w *= 1200/h; h = 1200; }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      callback({name:file.name, url:canvas.toDataURL("image/jpeg", 0.6)});
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function downloadDataUrl(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || "download";
+  a.click();
+}
+
+// ─── ICONS (inline SVG) ────────────────────────────────────────────────────
+const IC = {
+  grid:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  users:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/></svg>,
+  matrix:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>,
+  book:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>,
+  alert:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  chart:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><path d="M2 20h20"/></svg>,
+  settings:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  x:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  plus:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  upload:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+  download:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  search:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  bell:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+  chevron:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>,
+  chevronUp:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>,
+  chevronDown:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>,
+  menu:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+  trash:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>,
+  edit:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  user:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  check:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
+  calendar:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  fileCheck:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>,
+  clipCheck:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>,
+  refresh:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>,
+  info:(p)=><svg {...p} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
+};
+
+// ─── BADGE COMPONENTS ──────────────────────────────────────────────────────
+function GapBadge({pct}) {
+  if(pct===0) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-50 text-green-700 border border-green-200">Competent</span>;
+  if(pct<=25) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">Minor Gap · {pct}%</span>;
+  return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-50 text-red-700 border border-red-200">Critical · {pct}%</span>;
+}
+function StatusDot({pct}) {
+  if(pct===0) return <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>;
+  if(pct<=25) return <span className="inline-block w-2 h-2 rounded-full bg-yellow-500"></span>;
+  return <span className="inline-block w-2 h-2 rounded-full bg-red-500"></span>;
+}
+function AvatarCircle({emp,size=36}) {
+  const bg = getDC(emp.department);
+  return (
+    <div style={{width:size,height:size,borderRadius:size*0.28,background:bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.34,color:"#fff",flexShrink:0,overflow:"hidden"}}>
+      {emp.photo ? <img src={emp.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : initials(emp.name)}
+    </div>
+  );
+}
+function SkillBar({current,required}) {
+  const pct = Math.min(100, Math.round(current/required*100));
+  const gap = required-current;
+  const color = gap===0?"#16A34A":gap===1?"#CA8A04":"#DC2626";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div style={{width:pct+"%",height:"100%",background:color,borderRadius:9999,transition:"width 0.3s"}}></div>
+      </div>
+      <span className="text-xs font-mono font-medium" style={{color,minWidth:28}}>{current}/{required}</span>
+    </div>
+  );
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────
+function BarChart({data,height=160}) {
+  const max = Math.max(...data.map(d=>d.value),1);
+  const bw = 32, gap = 16, totalW = data.length*(bw+gap)-gap;
+  return (
+    <svg width="100%" viewBox={`0 0 ${totalW} ${height+30}`} preserveAspectRatio="xMidYMid meet">
+      {data.map((d,i)=>{
+        const barH = Math.round((d.value/max)*height);
+        const x = i*(bw+gap);
+        const y = height-barH;
+        const color = d.value===0?"#E5E7EB":d.value>50?"#DC2626":d.value>25?"#CA8A04":"#16A34A";
+        return (
+          <g key={i}>
+            <rect x={x} y={y} width={bw} height={barH} fill={color} rx={4} opacity={0.85}/>
+            <text x={x+bw/2} y={height+14} textAnchor="middle" fontSize={9} fill="#9CA3AF" fontFamily="IBM Plex Sans">{d.label}</text>
+            {d.value>0&&<text x={x+bw/2} y={y-4} textAnchor="middle" fontSize={9} fontWeight="600" fill="#374151" fontFamily="IBM Plex Sans">{d.value}%</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+function DonutChart({segments,size=110,label,sublabel}) {
+  const total = segments.reduce((s,d)=>s+d.value,0)||1;
+  const r=36, cx=size/2, cy=size/2, sw=18, circ=2*Math.PI*r;
+  let off=0;
+  const arcs = segments.map((seg,i)=>{
+    const frac=seg.value/total;
+    const dash=frac*circ;
+    const el=<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={seg.color} strokeWidth={sw} strokeDasharray={`${dash} ${circ-dash}`} strokeDashoffset={-(off*circ)} transform={`rotate(-90,${cx},${cy})`}/>;
+    off+=frac; return el;
+  });
+  return (
+    <svg width={size} height={size}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#F3F4F6" strokeWidth={sw}/>
+      {arcs}
+      {label&&<text x={cx} y={cy-4} textAnchor="middle" fontSize={15} fontWeight="700" fill="#111827" fontFamily="IBM Plex Sans">{label}</text>}
+      {sublabel&&<text x={cx} y={cy+13} textAnchor="middle" fontSize={9} fill="#9CA3AF" fontFamily="IBM Plex Sans">{sublabel}</text>}
+    </svg>
+  );
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────
+function Sidebar({page,setPage,col,setCol,loggedInUser}) {
+  const items=[
+    {id:"dashboard",label:"Dashboard",Icon:IC.grid},
+    {id:"employees",label:"Employees",Icon:IC.users},
+    {id:"skillMatrix",label:"Skill Matrix",Icon:IC.matrix},
+    {id:"training",label:"Training",Icon:IC.book},
+    {id:"overdue",label:"Overdue",Icon:IC.alert},
+    {id:"reports",label:"Reports",Icon:IC.chart},
+  ];
+  if(loggedInUser?.role === "admin") items.push({id:"settings",label:"Settings",Icon:IC.settings});
+  return (
+    <div className="fixed left-0 top-0 bottom-0 bg-white border-r border-gray-200 flex flex-col z-30 transition-all" style={{width:col?60:240}}>
+      {/* Logo */}
+      <div className="flex items-center h-16 px-4 py-2 border-b border-gray-100 flex-shrink-0 bg-white">
+        {!col&&<div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{background:"linear-gradient(135deg,#0DA5C3 0%,#0891b2 100%)"}}>
+            <span className="text-white font-black text-sm">EJ</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="font-extrabold text-[#0DA5C3] text-sm leading-tight tracking-wide">ECHJAY</span>
+            <span className="font-semibold text-gray-500 text-[10px] leading-tight tracking-widest uppercase">Industries</span>
+          </div>
+        </div>}
+        {col&&<div className="mx-auto w-9 h-9 rounded-lg flex items-center justify-center" style={{background:"linear-gradient(135deg,#0DA5C3 0%,#0891b2 100%)"}}><span className="text-white font-black text-sm">EJ</span></div>}
+      </div>
+      {/* Nav */}
+      <nav className="flex-1 py-3 overflow-y-auto">
+        {items.map(({id,label,Icon})=>(
+          <button key={id} onClick={()=>setPage(id)} title={col?label:""} className={`nav-item w-full flex items-center px-4 py-2.5 text-sm text-gray-600 gap-3 ${page===id?"active":""}`}>
+            <Icon className="w-5 h-5 flex-shrink-0"/>
+            {!col&&<span>{label}</span>}
+            {!col&&id==="overdue"&&<span className="ml-auto text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold leading-none">!</span>}
+          </button>
+        ))}
+      </nav>
+      {/* User */}
+      <div className="border-t border-gray-100 p-3 flex-shrink-0">
+        {col
+          ? <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mx-auto">{initials(loggedInUser?.name)}</div>
+          : <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{initials(loggedInUser?.name)}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-gray-800 truncate">{loggedInUser?.name}</div>
+                <div className="text-xs text-gray-400 truncate">{loggedInUser?.designation}</div>
+              </div>
+            </div>
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─── HEADER ───────────────────────────────────────────────────────────────
+function Header({title,search,setSearch,col,setCol,extra}) {
+  return (
+    <div className="fixed top-0 right-0 bg-white border-b border-gray-200 h-16 flex items-center px-5 gap-4 z-20 transition-all" style={{left:col?60:240}}>
+      <button onClick={()=>setCol(!col)} className="text-gray-400 hover:text-gray-600 p-1 rounded">
+        <IC.menu className="w-5 h-5"/>
+      </button>
+      <h1 className="font-semibold text-gray-900 text-base">{title}</h1>
+      <div className="flex-1 max-w-xs ml-2">
+        <div className="relative">
+          <IC.search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employees…" className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-800"/>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 ml-auto">
+        {extra}
+        <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+          <IC.bell className="w-5 h-5"/>
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD PAGE ───────────────────────────────────────────────────────
+function DashboardPage({emps,onSelect}) {
+  const total = emps.length;
+  const allSkills = emps.flatMap(e=>e.skills||[]);
+  const totalGap = allSkills.reduce((s,sk)=>s+Math.max(0,sk.required-sk.current),0);
+  const totalReq = allSkills.reduce((s,sk)=>s+sk.required,0);
+  const overallGapPct = totalReq>0?Math.round(totalGap/totalReq*100):0;
+  const empsWithGap = emps.filter(e=>getGap(e).gap>0).length;
+  const allTrainings = emps.flatMap(e=>(e.skills||[]).flatMap(sk=>sk.trainings||[]));
+  const completedT = allTrainings.filter(t=>t.pass===true).length;
+  const overdueT = allTrainings.filter(t=>t.nextDate&&isOverdue(t.nextDate)&&!t.pass).length;
+
+  // Dept gap chart
+  const depts = [...new Set(emps.map(e=>e.department))];
+  const deptData = depts.map(dept=>{
+    const de = emps.filter(e=>e.department===dept);
+    const dg = de.flatMap(e=>e.skills||[]).reduce((s,sk)=>s+Math.max(0,sk.required-sk.current),0);
+    const dr = de.flatMap(e=>e.skills||[]).reduce((s,sk)=>s+sk.required,0);
+    return {label:dept.slice(0,8),value:dr>0?Math.round(dg/dr*100):0};
+  }).sort((a,b)=>b.value-a.value).slice(0,8);
+
+  // Skill gap distribution donut
+  const competent = emps.filter(e=>getGap(e).pct===0).length;
+  const minor = emps.filter(e=>{const p=getGap(e).pct;return p>0&&p<=25;}).length;
+  const critical = emps.filter(e=>getGap(e).pct>25).length;
+
+  // Top gap employees
+  const topGap = [...emps].sort((a,b)=>getGap(b).pct-getGap(a).pct).slice(0,5);
+
+  const kpis = [
+    {label:"Total Employees",value:total,sub:"Active headcount",color:"#2563EB",bg:"#EFF6FF",icon:IC.users},
+    {label:"Overall Skill Gap",value:overallGapPct+"%",sub:`${totalGap} gap points across all skills`,color:"#DC2626",bg:"#FEF2F2",icon:IC.alert},
+    {label:"Employees with Gaps",value:empsWithGap,sub:`of ${total} need attention`,color:"#CA8A04",bg:"#FFFBEB",icon:IC.chart},
+    {label:"Trainings Completed",value:completedT,sub:`${overdueT} overdue reviews`,color:"#16A34A",bg:"#F0FDF4",icon:IC.book},
+  ];
+
+  return (
+    <div className="fade-up">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        {kpis.map((k,i)=>(
+          <div key={i} className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{k.label}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{k.value}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{background:k.bg}}>
+                <k.icon className="w-5 h-5" style={{color:k.color}}/>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">{k.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+        {/* Bar chart */}
+        <div className="xl:col-span-2 bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Skill Gap by Department (%)</h3>
+          <p className="text-xs text-gray-400 mb-4">Lower is better. Red = Critical, Yellow = Moderate, Green = Good.</p>
+          <BarChart data={deptData}/>
+        </div>
+        {/* Donut */}
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col items-center">
+          <h3 className="text-sm font-semibold text-gray-700 mb-1 self-start">Employee Skill Status</h3>
+          <p className="text-xs text-gray-400 mb-4 self-start">Distribution across all {total} employees</p>
+          <DonutChart size={120} segments={[
+            {value:competent,color:"#16A34A"},{value:minor,color:"#CA8A04"},{value:critical,color:"#DC2626"}
+          ]} label={total} sublabel="employees"/>
+          <div className="mt-4 space-y-2 w-full">
+            {[{label:"Competent",count:competent,color:"#16A34A"},{label:"Minor Gap",count:minor,color:"#CA8A04"},{label:"Critical Gap",count:critical,color:"#DC2626"}].map(s=>(
+              <div key={s.label} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{background:s.color}}></div>
+                <span className="text-xs text-gray-600 flex-1">{s.label}</span>
+                <span className="text-xs font-semibold text-gray-800">{s.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Top gap table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">Employees Requiring Attention</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead><tr className="border-b border-gray-100">
+            <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Employee</th>
+            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Department</th>
+            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Designation</th>
+            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Skill Gap</th>
+            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+          </tr></thead>
+          <tbody>
+            {topGap.map(emp=>{
+              const {pct}=getGap(emp);
+              return (
+                <tr key={emp.id} className="table-row border-b border-gray-50 cursor-pointer" onClick={()=>onSelect(emp.id)}>
+                  <td className="px-5 py-3"><div className="flex items-center gap-3"><AvatarCircle emp={emp}/><div><div className="font-medium text-gray-900">{emp.name}</div><div className="text-xs text-gray-400">{emp.cardNo}</div></div></div></td>
+                  <td className="px-4 py-3 text-gray-600">{emp.department}</td>
+                  <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
+                  <td className="px-4 py-3"><div className="flex items-center gap-2"><div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div style={{width:pct+"%",height:"100%",background:pct>50?"#DC2626":pct>25?"#CA8A04":"#16A34A",borderRadius:9999}}></div></div><span className="text-xs font-mono text-gray-600">{pct}%</span></div></td>
+                  <td className="px-4 py-3"><GapBadge pct={pct}/></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── EMPLOYEES PAGE ───────────────────────────────────────────────────────
+function EmployeesPage({emps,onSelect,importRef,skillsImportRef,onImport,onSkillsImport,onAddEmp,onDlEmpTpl,onDlSkillTpl}) {
+  const [search,setSearch] = useState("");
+  const [dept,setDept] = useState("All");
+  const [desig,setDesig] = useState("All");
+  const [gapFilter,setGapFilter] = useState("All");
+  const [page,setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const depts = ["All",...new Set(emps.map(e=>e.department))].sort();
+  const desigs = ["All",...new Set(emps.map(e=>e.designation))].sort();
+
+  const filtered = useMemo(()=>emps.filter(e=>{
+    const {pct}=getGap(e);
+    const s=search.toLowerCase();
+    return (!s||(e.name+e.department+e.designation+e.cardNo).toLowerCase().includes(s))
+      &&(dept==="All"||e.department===dept)
+      &&(desig==="All"||e.designation===desig)
+      &&(gapFilter==="All"||(gapFilter==="none"&&pct===0)||(gapFilter==="minor"&&pct>0&&pct<=25)||(gapFilter==="critical"&&pct>25));
+  }),[emps,search,dept,desig,gapFilter]);
+
+  const pages = Math.ceil(filtered.length/PAGE_SIZE)||1;
+  const pageData = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+
+  const inputStyle = "text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:ring-0 cursor-pointer";
+
+  return (
+    <div className="fade-up">
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[180px]">
+            <IC.search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
+            <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search by name, dept, designation…" className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white"/>
+          </div>
+          <select value={dept} onChange={e=>{setDept(e.target.value);setPage(1);}} className={inputStyle}>
+            {depts.map(d=><option key={d}>{d}</option>)}
+          </select>
+          <select value={desig} onChange={e=>{setDesig(e.target.value);setPage(1);}} className={inputStyle}>
+            {desigs.map(d=><option key={d}>{d}</option>)}
+          </select>
+          <select value={gapFilter} onChange={e=>{setGapFilter(e.target.value);setPage(1);}} className={inputStyle}>
+            <option value="All">All Gaps</option>
+            <option value="none">Competent</option>
+            <option value="minor">Minor Gap</option>
+            <option value="critical">Critical Gap</option>
+          </select>
+          <div className="ml-auto flex gap-2 flex-wrap">
+            <button onClick={onAddEmp} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-green-700 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
+              <IC.plus className="w-4 h-4"/><span>Add Employee</span>
+            </button>
+            <div className="flex items-center gap-1 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
+              <button onClick={()=>importRef.current&&importRef.current.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100">
+                <IC.upload className="w-4 h-4"/><span>Import Employees</span>
+              </button>
+              <div className="w-px h-5 bg-blue-200"/>
+              <button onClick={onDlEmpTpl} title="Download employee Excel template" className="px-2.5 py-1.5 text-blue-600 hover:bg-blue-100 flex items-center gap-1 text-xs font-medium">
+                <IC.download className="w-3.5 h-3.5"/>Template
+              </button>
+            </div>
+            <div className="flex items-center gap-1 border border-purple-200 bg-purple-50 rounded-lg overflow-hidden">
+              <button onClick={()=>skillsImportRef.current&&skillsImportRef.current.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 hover:bg-purple-100">
+                <IC.matrix className="w-4 h-4"/><span>Import Skills</span>
+              </button>
+              <div className="w-px h-5 bg-purple-200"/>
+              <button onClick={onDlSkillTpl} title="Download skills Excel template" className="px-2.5 py-1.5 text-purple-600 hover:bg-purple-100 flex items-center gap-1 text-xs font-medium">
+                <IC.download className="w-3.5 h-3.5"/>Template
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="text-xs text-gray-400 mb-2 px-1">Showing {filtered.length} of {emps.length} employees</div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Employee</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Department</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Designation</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Skills</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Skill Gap</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Action</th>
+            </tr></thead>
+            <tbody>
+              {pageData.length===0&&<tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400 text-sm">No employees match the selected filters.</td></tr>}
+              {pageData.map(emp=>{
+                const {gap,tot,pct}=getGap(emp);
+                return (
+                  <tr key={emp.id} className="table-row border-b border-gray-50 cursor-pointer" onClick={()=>onSelect(emp.id)}>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <AvatarCircle emp={emp}/>
+                        <div>
+                          <div className="font-medium text-gray-900">{emp.name}</div>
+                          <div className="text-xs text-gray-400">{emp.cardNo} · DOJ: {fmtDate(emp.doj)}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:getDC(emp.department)}}></div>
+                        <span className="text-gray-600">{emp.department}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{(emp.skills||[]).length} skills</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div style={{width:pct+"%",height:"100%",background:pct>50?"#DC2626":pct>25?"#CA8A04":"#16A34A",borderRadius:9999}}></div>
+                        </div>
+                        <span className="text-xs font-mono text-gray-500">{pct}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><GapBadge pct={pct}/></td>
+                    <td className="px-4 py-3">
+                      <button className="text-xs text-blue-600 font-medium hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50">View →</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {/* Pagination */}
+        {pages>1&&<div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-400">Page {page} of {pages}</span>
+          <div className="flex gap-1">
+            {Array.from({length:pages},(_,i)=>(
+              <button key={i} onClick={()=>setPage(i+1)} className={`w-7 h-7 text-xs rounded font-medium ${page===i+1?"bg-blue-600 text-white":"text-gray-500 hover:bg-gray-100"}`}>{i+1}</button>
+            ))}
+          </div>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── SKILL MATRIX ─────────────────────────────────────────────────────────
+function SkillMatrixPage({emps}) {
+  const [dept,setDept] = useState("All");
+  const depts = ["All",...new Set(emps.map(e=>e.department))].sort();
+  const filtered = dept==="All"?emps:emps.filter(e=>e.department===dept);
+  const allSkillNames = useMemo(()=>{
+    const set = new Set();
+    filtered.forEach(e=>(e.skills||[]).forEach(s=>set.add(s.name)));
+    return Array.from(set).sort();
+  },[filtered]);
+
+  function cellInfo(emp,skillName) {
+    const sk=(emp.skills||[]).find(s=>s.name===skillName);
+    if(!sk) return null;
+    return {c:sk.current,r:sk.required,gap:sk.required-sk.current};
+  }
+
+  return (
+    <div className="fade-up">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4 flex items-center gap-4">
+        <select value={dept} onChange={e=>setDept(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700">
+          {depts.map(d=><option key={d}>{d}</option>)}
+        </select>
+        <div className="flex items-center gap-5 ml-4 text-xs text-gray-500">
+          {[{c:"#DCFCE7",tc:"#166534",l:"Competent (0 gap)"},{c:"#FEF9C3",tc:"#854D0E",l:"Minor Gap (1)"},{c:"#FEE2E2",tc:"#991B1B",l:"Critical Gap (2+)"},{c:"#F3F4F6",tc:"#6B7280",l:"Not Applicable"}].map(x=>(
+            <div key={x.l} className="flex items-center gap-1.5"><div className="w-5 h-4 rounded border" style={{background:x.c}}></div><span>{x.l}</span></div>
+          ))}
+        </div>
+        <div className="ml-auto text-xs text-gray-400">{filtered.length} employees · {allSkillNames.length} skills</div>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-auto" style={{maxHeight:"calc(100vh - 240px)"}}>
+          <table className="text-xs border-collapse">
+            <thead>
+              <tr>
+                <th className="sticky left-0 bg-gray-50 z-10 border-b border-r border-gray-200 px-4 py-3 text-left font-semibold text-gray-500 text-xs uppercase tracking-wide" style={{minWidth:180}}>Employee</th>
+                {allSkillNames.map(sk=>(
+                  <th key={sk} className="skill-cell border-b border-r border-gray-100 px-1 py-2 text-center font-medium text-gray-500" style={{writingMode:"vertical-rl",transform:"rotate(180deg)",height:90}}>
+                    <span style={{display:"inline-block",maxHeight:80,overflow:"hidden",textOverflow:"ellipsis"}}>{sk}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(emp=>(
+                <tr key={emp.id} className="border-b border-gray-100">
+                  <td className="sticky left-0 bg-white z-10 border-r border-gray-200 px-4 py-2">
+                    <div className="flex items-center gap-2">
+                      <AvatarCircle emp={emp} size={28}/>
+                      <div>
+                        <div className="font-medium text-gray-800">{emp.name}</div>
+                        <div className="text-gray-400" style={{fontSize:10}}>{emp.designation}</div>
+                      </div>
+                    </div>
+                  </td>
+                  {allSkillNames.map(sk=>{
+                    const info=cellInfo(emp,sk);
+                    if(!info) return <td key={sk} className="skill-cell border-r border-gray-100 text-center"><div className="mx-1 my-1 rounded" style={{background:"#F3F4F6",height:28}}></div></td>;
+                    const {c,r,gap}=info;
+                    const bg=gap<=0?"#DCFCE7":gap===1?"#FEF9C3":"#FEE2E2";
+                    const tc=gap<=0?"#166534":gap===1?"#854D0E":"#991B1B";
+                    return (
+                      <td key={sk} className="skill-cell border-r border-gray-100 text-center">
+                        <div className="mx-1 my-1 rounded flex items-center justify-center font-mono font-semibold text-xs" style={{background:bg,color:tc,height:28}}>{c}/{r}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TRAINING PAGE ────────────────────────────────────────────────────────
+function TrainingPage({emps,onSelect,onBatchUpdate}) {
+  const [dept,setDept] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [view, setView] = useState("records"); // records, autoPlan, adHoc
+  const [scheduleData, setScheduleData] = useState({});
+  const [adHocDept, setAdHocDept] = useState("All");
+  const [adHocForm, setAdHocForm] = useState({topic:"", trainer:"", date:"", time:"", venue:""});
+  const [selectedEmps, setSelectedEmps] = useState({});
+
+  const depts = ["All",...new Set(emps.map(e=>e.department))].sort();
+  const filtered = dept==="All"?emps:emps.filter(e=>e.department===dept);
+  const adHocEmps = adHocDept==="All"?emps:emps.filter(e=>e.department===adHocDept);
+
+  const autoPlan = useMemo(() => {
+    let planMap = {};
+    filtered.forEach(emp => {
+      (emp.skills || []).forEach(sk => {
+        const hasGap = sk.current < sk.required;
+        const noTraining = (!sk.trainings || sk.trainings.filter(t=>t.status==='planned'||t.pass===null).length === 0);
+        const hasOverdue = (sk.trainings || []).some(t => t.nextDate && isOverdue(t.nextDate) && t.pass !== true);
+        let reason = "";
+        if (hasOverdue) reason = "Overdue Re-evaluation";
+        else if (hasGap && noTraining) reason = `Skill Gap (${sk.current}/${sk.required})`;
+        if (reason) {
+          if(!planMap[sk.name]) planMap[sk.name] = [];
+          planMap[sk.name].push({ emp, reason });
+        }
+      });
+    });
+    return Object.keys(planMap).sort().map(skillName => ({
+      skill: skillName,
+      attendees: planMap[skillName].sort((a,b)=>a.emp.department.localeCompare(b.emp.department) || a.emp.name.localeCompare(b.emp.name))
+    }));
+  }, [filtered]);
+
+  const rows = filtered.flatMap(emp=>
+    (emp.skills||[]).flatMap(sk=>(sk.trainings||[]).map(t=>({emp,skill:sk,training:t})))
+  ).filter(r=>r.training.topic).filter(r=>{
+    if(!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return r.emp.name.toLowerCase().includes(term) || (r.emp.cardNo||"").toLowerCase().includes(term) || r.training.topic.toLowerCase().includes(term);
+  }).sort((a,b)=>new Date(b.training.date)-new Date(a.training.date));
+
+  const STEPS = ["Planned","Training Done","Evaluation","Completed"];
+  function getStep(t) {
+    if(t.pass===true) return 3;
+    if(t.pass===false) return 2;
+    if(t.date) return 1;
+    return 0;
+  }
+
+  function toggleEmpSelect(id) {
+    setSelectedEmps(prev=>({...prev, [id]:!prev[id]}));
+  }
+  function selectAllAdHoc() {
+    const allSelected = adHocEmps.every(e=>selectedEmps[e.id]);
+    const next = {...selectedEmps};
+    adHocEmps.forEach(e => next[e.id] = !allSelected);
+    setSelectedEmps(next);
+  }
+
+  function handleAutoSchedule() {
+    let upserts = [];
+    autoPlan.forEach(cls => {
+      const {date, time, venue} = scheduleData[cls.skill] || {};
+      if(date && time && venue) {
+        cls.attendees.forEach(att => {
+          let updatedEmp = upserts.find(u => u.id === att.emp.id) || {...att.emp, skills: [...(att.emp.skills||[])]};
+          updatedEmp.skills = updatedEmp.skills.map(sk => {
+            if(sk.name === cls.skill) {
+               return {...sk, trainings: [...(sk.trainings||[]), {
+                 id: "t_"+Date.now()+Math.random().toString(36).slice(2,5),
+                 topic: cls.skill + " Mandatory Gap Training",
+                 trainer: "Internal",
+                 type: "Classroom",
+                 date: date + " " + time,
+                 venue: venue,
+                 status: "planned",
+                 pass: null
+               }]};
+            }
+            return sk;
+          });
+          const uIdx = upserts.findIndex(u => u.id === updatedEmp.id);
+          if(uIdx>=0) upserts[uIdx] = updatedEmp; else upserts.push(updatedEmp);
+        });
+      }
+    });
+    if(upserts.length === 0) { alert("Please fill out Date, Time, and Venue for at least one class!"); return; }
+    if(!onBatchUpdate){ alert("Batch update missing"); return; }
+    onBatchUpdate(upserts);
+    alert(`✅ Successfully scheduled training for ${upserts.length} employees. Notifications simulated to Department Owners.`);
+    setView("records");
+    setScheduleData({});
+  }
+
+  function handleAdHocSchedule() {
+    const targets = adHocEmps.filter(e=>selectedEmps[e.id]);
+    if(!targets.length) { alert("Select at least one employee."); return; }
+    if(!adHocForm.topic || !adHocForm.date || !adHocForm.time || !adHocForm.venue) {
+      alert("Please fill out all ad-hoc training details."); return;
+    }
+    let upserts = [];
+    targets.forEach(emp => {
+      let updatedEmp = {...emp, skills: [...(emp.skills||[])]};
+      let genSkill = updatedEmp.skills.find(s=>s.name==="General / Ad-Hoc");
+      if(!genSkill) {
+         genSkill = { id: "sk_gen", name: "General / Ad-Hoc", required: 1, current: 1, trainings: [] };
+         updatedEmp.skills.push(genSkill);
+      }
+      updatedEmp.skills = updatedEmp.skills.map(sk => {
+        if(sk.name === "General / Ad-Hoc") {
+           return {...sk, trainings: [...(sk.trainings||[]), {
+             id: "t_adhoc_"+Date.now()+Math.random().toString(36).slice(2,5),
+             topic: adHocForm.topic,
+             trainer: adHocForm.trainer || "General Trainer",
+             type: "Classroom",
+             date: adHocForm.date + " " + adHocForm.time,
+             venue: adHocForm.venue,
+             status: "planned",
+             pass: null
+           }]};
+        }
+        return sk;
+      });
+      upserts.push(updatedEmp);
+    });
+    if(!onBatchUpdate){ alert("Batch update missing"); return; }
+    onBatchUpdate(upserts);
+    alert(`✅ Ad-Hoc Training Scheduled for ${upserts.length} employees.`);
+    setView("records");
+    setAdHocForm({topic:"", trainer:"", date:"", time:"", venue:""});
+    setSelectedEmps({});
+  }
+
+  return (
+    <div className="fade-up">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 mb-4 flex items-center gap-2 print:hidden">
+        <div className="flex items-center bg-gray-100 p-1 rounded-lg mr-4">
+          <button onClick={()=>setView("records")} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view==='records'?'bg-white shadow-sm text-blue-700':'text-gray-500 hover:text-gray-700'}`}>Training Records</button>
+          <button onClick={()=>setView("autoPlan")} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view==='autoPlan'?'bg-white shadow-sm text-blue-700':'text-gray-500 hover:text-gray-700'}`}>
+            <IC.matrix className="w-4 h-4 inline-block -mt-0.5 mr-1"/> 1-Click Auto-Planner
+          </button>
+          <button onClick={()=>setView("adHoc")} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view==='adHoc'?'bg-white shadow-sm text-blue-700':'text-gray-500 hover:text-gray-700'}`}>
+            <IC.calendar className="w-4 h-4 inline-block -mt-0.5 mr-1"/> Ad-Hoc Group Training
+          </button>
+        </div>
+
+        {view === "records" && (
+          <>
+            <span className="text-sm font-medium text-gray-600">Filter:</span>
+            <select value={dept} onChange={e=>setDept(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 cursor-pointer">
+              {depts.map(d=><option key={d}>{d}</option>)}
+            </select>
+            <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search employee or topic..." className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 ml-2 min-w-[200px] outline-none focus:ring-2 focus:ring-blue-500"/>
+            <span className="text-xs text-gray-400 ml-2">{rows.length} records</span>
+          </>
+        )}
+
+        {view === "autoPlan" && (
+          <>
+            <button onClick={handleAutoSchedule} className="ml-auto flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-md">
+              <IC.check className="w-4 h-4"/> Confirm & Schedule All
+            </button>
+          </>
+        )}
+      </div>
+
+      {view === "autoPlan" && (
+        <div className="space-y-6 print:space-y-4 max-w-5xl mx-auto auto-page-break">
+          {autoPlan.length === 0 ? (
+            <div className="text-center p-12 bg-white rounded-xl border border-gray-200">
+               <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4"><IC.check className="w-8 h-8"/></div>
+               <h3 className="text-lg font-bold text-gray-800">100% Compliant</h3>
+               <p className="text-gray-500 mt-1">No skill gaps or overdue trainings detected for the factory.</p>
+            </div>
+          ) : (
+            autoPlan.map((cls, i) => (
+              <div key={i} className="bg-white rounded-xl border border-indigo-200 shadow-sm overflow-hidden mb-6">
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-3 border-b border-indigo-100 flex items-center justify-between">
+                  <h3 className="font-bold text-indigo-900 text-lg flex items-center gap-2">Class {i+1}: {cls.skill}</h3>
+                  <div className="bg-white text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-200 shadow-sm">{cls.attendees.length} Trainee{cls.attendees.length>1?'s':''}</div>
+                </div>
+                <div className="p-0">
+                  <table className="w-full text-sm table-fixed">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-1/3">Employee Name</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-1/3">Department</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-1/3">Reason for Training</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cls.attendees.map((att, j) => (
+                        <tr key={j} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                          <td className="px-5 py-2.5 font-medium text-gray-900 truncate">{att.emp.name} <span className="text-xs text-gray-400 font-normal ml-1">({att.emp.cardNo})</span></td>
+                          <td className="px-5 py-2.5"><span className="px-2 py-1 rounded-md text-xs font-medium border border-gray-200 bg-white text-gray-600 truncate inline-block max-w-full">{att.emp.department}</span></td>
+                          <td className="px-5 py-2.5 text-red-600 font-medium text-xs">{att.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="bg-blue-50/50 px-6 py-4 border-t border-indigo-100 flex flex-wrap items-center gap-4 text-sm text-gray-700">
+                     <div className="flex items-center gap-2 font-semibold text-indigo-900">Schedule this Class:</div>
+                     <input type="date" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                            value={scheduleData[cls.skill]?.date||""} 
+                            onChange={e=>setScheduleData(p=>({...p, [cls.skill]:{...p[cls.skill], date:e.target.value}}))}/>
+                     <input type="time" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                            value={scheduleData[cls.skill]?.time||""} 
+                            onChange={e=>setScheduleData(p=>({...p, [cls.skill]:{...p[cls.skill], time:e.target.value}}))}/>
+                     <input type="text" placeholder="Enter Training Venue..." className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-64 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                            value={scheduleData[cls.skill]?.venue||""} 
+                            onChange={e=>setScheduleData(p=>({...p, [cls.skill]:{...p[cls.skill], venue:e.target.value}}))}/>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {view === "adHoc" && (
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div className="md:col-span-1 space-y-4">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                 <h3 className="text-sm font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4">Training Details</h3>
+                 <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">Training Topic</label>
+                      <input value={adHocForm.topic} onChange={e=>setAdHocForm(p=>({...p,topic:e.target.value}))} placeholder="e.g. POSH Training, Fire Safety" className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white"/>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">Trainer Name</label>
+                      <input value={adHocForm.trainer} onChange={e=>setAdHocForm(p=>({...p,trainer:e.target.value}))} placeholder="e.g. External Agency" className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white"/>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 block mb-1">Date</label>
+                        <input type="date" value={adHocForm.date} onChange={e=>setAdHocForm(p=>({...p,date:e.target.value}))} className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 block mb-1">Time</label>
+                        <input type="time" value={adHocForm.time} onChange={e=>setAdHocForm(p=>({...p,time:e.target.value}))} className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white"/>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">Venue</label>
+                      <input value={adHocForm.venue} onChange={e=>setAdHocForm(p=>({...p,venue:e.target.value}))} placeholder="e.g. Conference Room A" className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white"/>
+                    </div>
+                 </div>
+                 <button onClick={handleAdHocSchedule} className="w-full mt-6 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-md">
+                    <IC.calendar className="w-4 h-4"/> Schedule Group Training
+                 </button>
+              </div>
+           </div>
+           <div className="md:col-span-2">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[500px]">
+                 <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                       <h3 className="text-sm font-bold text-gray-800">Select Trainees</h3>
+                       <p className="text-xs text-gray-400 mt-0.5">{Object.values(selectedEmps).filter(Boolean).length} employees selected</p>
+                    </div>
+                    <select value={adHocDept} onChange={e=>setAdHocDept(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 text-gray-700 cursor-pointer">
+                      {depts.map(d=><option key={d}>{d}</option>)}
+                    </select>
+                 </div>
+                 <div className="overflow-y-auto flex-1 p-2">
+                    <div className="flex items-center gap-3 p-2 hover:bg-gray-50 border-b border-gray-100 cursor-pointer select-none" onClick={selectAllAdHoc}>
+                       <input type="checkbox" checked={adHocEmps.length>0 && adHocEmps.every(e=>selectedEmps[e.id])} readOnly className="w-4 h-4 text-blue-600 rounded border-gray-300"/>
+                       <span className="text-sm font-semibold text-gray-800">Select All in current filter</span>
+                    </div>
+                    {adHocEmps.map(emp => (
+                       <div key={emp.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 border-b border-gray-50 cursor-pointer select-none" onClick={()=>toggleEmpSelect(emp.id)}>
+                         <input type="checkbox" checked={!!selectedEmps[emp.id]} readOnly className="w-4 h-4 text-blue-600 rounded border-gray-300"/>
+                         <AvatarCircle emp={emp} size={28}/>
+                         <div className="flex-1">
+                           <div className="text-sm font-medium text-gray-900 leading-tight">{emp.name}</div>
+                           <div className="text-xs text-gray-400">{emp.designation} · {emp.department}</div>
+                         </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {view === "records" && (
+        <>
+          {rows.length===0&&(
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <IC.book className="w-10 h-10 mx-auto text-gray-300 mb-3"/>
+              <p className="text-gray-500 font-medium">No training records found</p>
+            </div>
+          )}
+          {rows.length>0&&(
+            <div className="space-y-3">
+              {rows.map(({emp,skill,training},i)=>{
+                const step=getStep(training);
+                const od=training.nextDate&&isOverdue(training.nextDate)&&training.pass!==true;
+                return (
+                  <div key={i} className={`bg-white rounded-xl border shadow-sm p-4 ${od?'border-red-200':'border-gray-200'}`}>
+                    <div className="flex flex-wrap items-start gap-4">
+                      <div className="flex items-center gap-3 min-w-[200px]">
+                        <AvatarCircle emp={emp}/>
+                        <div>
+                          <div className="font-semibold text-gray-900 text-sm cursor-pointer hover:text-blue-600" onClick={()=>onSelect(emp.id)}>{emp.name}</div>
+                          <div className="text-xs text-gray-400">{emp.designation}</div>
+                        </div>
+                      </div>
+                      <div className="min-w-[140px]">
+                        <div className="text-xs text-gray-400 mb-0.5">Skill Level</div>
+                        <div className="text-sm font-medium text-gray-700">{skill.name}</div>
+                        <div className="text-xs text-gray-400">{skill.current}/{skill.required} proficiency</div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="text-xs text-gray-400 mb-0.5">Training Details</div>
+                        <div className="text-sm font-medium text-gray-700">{training.topic}</div>
+                        <div className="text-xs text-gray-400">{fmtDate(training.date)} {training.venue ? `· Room: ${training.venue}` : ''}</div>
+                      </div>
+                      <div className="flex items-center gap-0">
+                        {STEPS.map((s,si)=>{
+                          const done=step>si, current=step===si;
+                          return (
+                            <div key={s} className="flex items-center">
+                              <div className="flex flex-col items-center gap-1">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${done?'bg-green-500 border-green-500 text-white':current?'bg-blue-600 border-blue-600 text-white':'bg-white border-gray-300 text-gray-400'}`}>
+                                  {done?<IC.check className="w-3 h-3"/>:si+1}
+                                </div>
+                                <div className={`text-xs whitespace-nowrap ${done?'text-green-600':current?'text-blue-600 font-medium':'text-gray-400'}`} style={{fontSize:9}}>{s}</div>
+                              </div>
+                              {si<STEPS.length-1&&<div className={`h-0.5 w-6 mb-4 ${done?'bg-green-400':'bg-gray-200'}`}></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {od&&<span className="text-xs font-semibold bg-red-50 text-red-700 border border-red-200 px-2 py-1 rounded self-start">Overdue · {fmtDate(training.nextDate)}</span>}
+                    </div>
+                    {step >= 1 && (
+                      <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                           <h4 className="text-xs font-bold text-gray-700 uppercase mb-2 flex items-center gap-1"><IC.fileCheck className="w-3 h-3 text-blue-500"/> Training Evidence</h4>
+                           {training.evidence || training.evidenceFile ? (
+                              <div className="text-sm text-gray-600">
+                                {training.evidence && <p className="mb-2 italic">"{training.evidence}"</p>}
+                                {training.evidenceFile && <a href={training.evidenceFile} target="_blank" rel="noreferrer" className="text-blue-600 font-medium hover:underline flex items-center gap-1.5"><IC.link className="w-3 h-3"/> View Attached Document</a>}
+                              </div>
+                           ) : (
+                              <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 inline-block font-medium">Pending Evidence Upload</p>
+                           )}
+                         </div>
+                         <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                           <h4 className="text-xs font-bold text-gray-700 uppercase mb-2 flex items-center gap-1"><IC.clipCheck className="w-3 h-3 text-green-500"/> Evaluation Details</h4>
+                           {training.pass !== null ? (
+                              <div className="space-y-1.5">
+                                 <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-500">Result:</span>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${training.pass?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{training.pass?'PASSED':'FAILED'}</span>
+                                 </div>
+                                 <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-500">Method:</span>
+                                    <span className="text-xs font-medium text-gray-800">{training.method || "N/A"}</span>
+                                 </div>
+                                 <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-500">Score:</span>
+                                    <span className="text-xs font-medium text-gray-800">{training.score || "N/A"}</span>
+                                 </div>
+                                 {training.evalNotes && <div className="text-xs text-gray-600 italic border-t border-gray-200 pt-1.5 mt-1.5">"{training.evalNotes}"</div>}
+                              </div>
+                           ) : (
+                              <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 inline-block font-medium">Pending Evaluation</p>
+                           )}
+                         </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── OVERDUE PAGE ─────────────────────────────────────────────────────────
+
+
+function OverduePage({emps,onSelect}) {
+  const overdueTrainings = emps.flatMap(emp=>
+    (emp.skills||[]).flatMap(sk=>
+      (sk.trainings||[]).filter(t=>t.nextDate&&isOverdue(t.nextDate)&&t.pass!==true).map(t=>({emp,skill:sk,training:t}))
+    )
+  );
+  const skillGapNoTraining = emps.flatMap(emp=>
+    (emp.skills||[]).filter(sk=>sk.current<sk.required&&(!sk.trainings||sk.trainings.length===0)).map(sk=>({emp,skill:sk}))
+  );
+
+  return (
+    <div className="fade-up">
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="text-2xl font-bold text-red-700">{overdueTrainings.length}</div>
+          <div className="text-sm text-red-600 font-medium">Overdue Re-evaluations</div>
+          <div className="text-xs text-red-400 mt-0.5">Trainings with past next-date</div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="text-2xl font-bold text-yellow-700">{skillGapNoTraining.length}</div>
+          <div className="text-sm text-yellow-600 font-medium">Gaps without Training Plan</div>
+          <div className="text-xs text-yellow-400 mt-0.5">Skills below required with no training scheduled</div>
+        </div>
+      </div>
+
+      {overdueTrainings.length>0&&(
+        <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden mb-4">
+          <div className="bg-red-50 px-5 py-3 border-b border-red-200 flex items-center gap-2">
+            <IC.alert className="w-4 h-4 text-red-600"/>
+            <h3 className="text-sm font-semibold text-red-700">Overdue Re-evaluations ({overdueTrainings.length})</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-gray-100">
+              <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Employee</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Skill</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Training</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Overdue Since</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Days Overdue</th>
+            </tr></thead>
+            <tbody>
+              {overdueTrainings.map(({emp,skill,training},i)=>{
+                const daysOD = Math.floor((new Date()-new Date(training.nextDate))/(1000*60*60*24));
+                return (
+                  <tr key={i} className="border-b border-gray-50 bg-red-50/30 hover:bg-red-50/60 cursor-pointer" onClick={()=>onSelect(emp.id)}>
+                    <td className="px-5 py-3"><div className="flex items-center gap-3"><AvatarCircle emp={emp} size={30}/><div><div className="font-medium text-gray-900">{emp.name}</div><div className="text-xs text-gray-400">{emp.department}</div></div></div></td>
+                    <td className="px-4 py-3 text-gray-600">{skill.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{training.topic}</td>
+                    <td className="px-4 py-3 text-red-600 font-medium">{fmtDate(training.nextDate)}</td>
+                    <td className="px-4 py-3"><span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded">{daysOD}d</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-yellow-200 shadow-sm overflow-hidden">
+        <div className="bg-yellow-50 px-5 py-3 border-b border-yellow-200 flex items-center gap-2">
+          <IC.alert className="w-4 h-4 text-yellow-600"/>
+          <h3 className="text-sm font-semibold text-yellow-700">Skill Gaps with No Training Plan ({skillGapNoTraining.length})</h3>
+        </div>
+        {skillGapNoTraining.length===0?<p className="px-5 py-6 text-sm text-gray-400 text-center">All skill gaps have associated training plans. ✓</p>:(
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-gray-100">
+              <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Employee</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Skill</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Gap</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Priority</th>
+            </tr></thead>
+            <tbody>
+              {skillGapNoTraining.map(({emp,skill},i)=>{
+                const gap=skill.required-skill.current;
+                return (
+                  <tr key={i} className="border-b border-gray-50 bg-yellow-50/20 hover:bg-yellow-50/50 cursor-pointer" onClick={()=>onSelect(emp.id)}>
+                    <td className="px-5 py-3"><div className="flex items-center gap-3"><AvatarCircle emp={emp} size={30}/><div><div className="font-medium text-gray-900">{emp.name}</div><div className="text-xs text-gray-400">{emp.designation}</div></div></div></td>
+                    <td className="px-4 py-3 text-gray-600">{skill.name}</td>
+                    <td className="px-4 py-3"><span className="font-mono text-sm font-semibold text-gray-700">{skill.current}/{skill.required}</span></td>
+                    <td className="px-4 py-3">{gap>=3?<span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded">High</span>:gap===2?<span className="text-xs font-bold bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Medium</span>:<span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Low</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── REPORTS PAGE ─────────────────────────────────────────────────────────
+function ReportsPage({emps}) {
+  const deptSummary = [...new Set(emps.map(e=>e.department))].sort().map(dept=>{
+    const de=emps.filter(e=>e.department===dept);
+    const totalGap=de.flatMap(e=>e.skills||[]).reduce((s,sk)=>s+Math.max(0,sk.required-sk.current),0);
+    const totalReq=de.flatMap(e=>e.skills||[]).reduce((s,sk)=>s+sk.required,0);
+    const gapPct=totalReq>0?Math.round(totalGap/totalReq*100):0;
+    return {dept,count:de.length,gapPct,totalGap,totalReq};
+  });
+  return (
+    <div className="fade-up">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">Department-wise Skill Gap Report</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Summary of skill gaps across all active departments</p>
+        </div>
+        <table className="w-full text-sm">
+          <thead><tr className="bg-gray-50 border-b border-gray-200">
+            <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Department</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Headcount</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Gap Points</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Gap %</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Visual</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+          </tr></thead>
+          <tbody>
+            {deptSummary.map(r=>(
+              <tr key={r.dept} className="border-b border-gray-50 table-row">
+                <td className="px-5 py-3"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{background:getDC(r.dept)}}></div><span className="font-medium text-gray-800">{r.dept}</span></div></td>
+                <td className="px-4 py-3 text-gray-600">{r.count}</td>
+                <td className="px-4 py-3 font-mono text-gray-600">{r.totalGap}/{r.totalReq}</td>
+                <td className="px-4 py-3 font-mono font-semibold text-gray-800">{r.gapPct}%</td>
+                <td className="px-4 py-3"><div className="w-32 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div style={{width:r.gapPct+"%",height:"100%",background:r.gapPct>50?"#DC2626":r.gapPct>25?"#CA8A04":"#16A34A",borderRadius:9999}}></div></div></td>
+                <td className="px-4 py-3"><GapBadge pct={r.gapPct}/></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── SETTINGS PAGE ────────────────────────────────────────────────────────
+function SettingsPage({loggedInUser, users, setUsers}) {
+  const [newUser, setNewUser] = useState({username:"",password:"",role:"owner",department:DEPARTMENTS[0],name:"",designation:""});
+  
+  function handleAdd() {
+    if(!newUser.username || !newUser.password) return;
+    setUsers([...users, newUser]);
+    setNewUser({username:"",password:"",role:"owner",department:DEPARTMENTS[0],name:"",designation:""});
+  }
+  
+  function handleDelete(uName) {
+    if(uName==="admin") { alert("Cannot delete primary admin"); return; }
+    if(window.confirm("Delete user?")) {
+      setUsers(users.filter(u=>u.username!==uName));
+    }
+  }
+
+  return (
+    <div className="fade-up max-w-5xl grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="space-y-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">System Information</h3>
+          {[["Application","EmpMatrix ERP — Skill Management System"],["Version","v3.0 (ERP Edition)"],["Theme","Professional Light (Audit-Ready)"],["Data Storage","Browser Local (Session)"],["Excel Import","XLSX v0.18.5"]].map(([k,v])=>(
+            <div key={k} className="flex justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <span className="text-sm text-gray-500">{k}</span>
+              <span className="text-sm font-medium text-gray-800">{v}</span>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Rating Scale Reference</h3>
+          {[[1,"Beginner — Awareness only, needs full supervision"],[2,"Basic — Can do simple tasks with guidance"],[3,"Intermediate — Works independently on standard tasks"],[4,"Advanced — Handles complex tasks, guides others"],[5,"Expert — Authority level, trains and certifies others"]].map(([n,d])=>(
+            <div key={n} className="flex items-start gap-3 py-2.5 border-b border-gray-100 last:border-0">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{n}</div>
+              <span className="text-sm text-gray-600 pt-0.5">{d}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* User Management restricted to Admin */}
+      {loggedInUser?.role === "admin" && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 h-fit">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><IC.users className="w-5 h-5 text-blue-600"/> User Management</h3>
+          <p className="text-xs text-gray-500 mb-6">Create department-restricted accounts. Department owners only view employees in their assigned department.</p>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 space-y-3 shadow-inner">
+            <div className="grid grid-cols-2 gap-3">
+              <input value={newUser.username} onChange={e=>setNewUser({...newUser,username:e.target.value})} placeholder="Username" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white"/>
+              <input value={newUser.password} onChange={e=>setNewUser({...newUser,password:e.target.value})} placeholder="Password" type="password" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white"/>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input value={newUser.name} onChange={e=>setNewUser({...newUser,name:e.target.value})} placeholder="Full Name" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white"/>
+              <input value={newUser.designation} onChange={e=>setNewUser({...newUser,designation:e.target.value})} placeholder="Designation" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white"/>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <select value={newUser.department} onChange={e=>setNewUser({...newUser,department:e.target.value})} className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+                {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+              </select>
+              <button onClick={handleAdd} className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm">Add User</button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {users.map((u,i)=>(
+              <div key={i} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl bg-white shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs ring-1 ring-blue-100">{initials(u.name)}</div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-800">{u.username} <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 ml-1">{u.role}</span></div>
+                    <div className="text-xs text-gray-500">{u.name} · {u.role==="admin"?"All Departments":u.department}</div>
+                  </div>
+                </div>
+                {u.role!=="admin" && (
+                  <button onClick={()=>handleDelete(u.username)} className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition"><IC.trash className="w-4 h-4"/></button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── EMPLOYEE DRAWER ──────────────────────────────────────────────────────
+function EmployeeDrawer({emp,allEmps,onClose,onUpdate}) {
+  const [tab,setTab] = useState("profile");
+  const [editMode,setEditMode] = useState(false);
+  const [editData,setEditData] = useState(null);
+  const [addingSkill,setAddingSkill] = useState(false);
+  const [newSkill,setNewSkill] = useState({name:"",required:3,current:1});
+
+  // Training plan modal state
+  const [planModal,setPlanModal] = useState(null);   // {skillId} or null
+  const [planForm,setPlanForm] = useState({topic:"",trainer:"",type:"Classroom",date:""});
+
+  // Evidence modal
+  const [evidModal,setEvidModal] = useState(null);   // {skillId, tIdx}
+  const [evidText,setEvidText] = useState("");
+  const [evidFile,setEvidFile] = useState(null);
+
+  // Evaluation modal
+  const [evalModal,setEvalModal] = useState(null);   // {skillId, tIdx}
+  const [evalForm,setEvalForm] = useState({evaluatorName:"",evalDate:new Date().toISOString().split("T")[0],method:"Practical Test",score:"",pass:null,notes:"",evalFile:null});
+
+  // Accordion state
+  const [expandedSkills, setExpandedSkills] = useState({});
+  function toggleSkill(id) { setExpandedSkills(p=>({...p, [id]:!p[id]})); }
+
+  // Auto-trigger: show training plan prompt if skills have gap + no plan
+  const [autoPrompt,setAutoPrompt] = useState(true);
+
+  const manager = allEmps.find(e=>e.id===emp.reportsTo);
+  const reports = allEmps.filter(e=>e.reportsTo===emp.id);
+  const {gap,tot,pct} = getGap(emp);
+  const allTrainings = (emp.skills||[]).flatMap(sk=>(sk.trainings||[]).map(t=>({...t,skillName:sk.name})));
+
+  const gapSkillsNoTrain = (emp.skills||[]).filter(sk=>sk.current<sk.required && (!sk.trainings||sk.trainings.length===0));
+
+  const tabs = [{id:"profile",label:"Profile"},{id:"skills",label:`Skills (${(emp.skills||[]).length})`},{id:"training",label:`Training (${allTrainings.length})`},{id:"jd",label:"Job Description"},{id:"team",label:`Team (${reports.length})`}];
+
+  // --- Edit profile handlers ---
+  function startEdit() {
+    setEditData({name:emp.name,cardNo:emp.cardNo,dob:emp.dob||"",doj:emp.doj||"",designation:emp.designation,department:emp.department,reportsTo:emp.reportsTo||"",responsibility:emp.responsibility||"",accountability:emp.accountability||"",authority:emp.authority||""});
+    setEditMode(true);
+  }
+  function saveEdit() {
+    onUpdate({...emp,...editData,reportsTo:editData.reportsTo||null});
+    setEditMode(false);
+  }
+
+  // --- Skill handlers ---
+  function doAddSkill() {
+    if(!newSkill.name.trim()) return;
+    const updated = {...emp, skills:[...(emp.skills||[]),{id:"sk"+Date.now(),name:newSkill.name.trim(),required:+newSkill.required,current:+newSkill.current,trainings:[]}]};
+    onUpdate(updated); setAddingSkill(false); setNewSkill({name:"",required:3,current:1});
+  }
+  function doDeleteSkill(skillId) {
+    if(!window.confirm("Remove this skill?")) return;
+    onUpdate({...emp, skills:(emp.skills||[]).filter(s=>s.id!==skillId)});
+  }
+  function doUpdateLevel(skillId,field,val) {
+    onUpdate({...emp, skills:(emp.skills||[]).map(s=>s.id===skillId?{...s,[field]:Math.min(5,Math.max(0,+val))}:s)});
+  }
+
+  // --- Training plan ---
+  function openPlanModal(skillId) {
+    setPlanForm({topic:"",trainer:"",type:"Classroom",date:"",nextDate:""});
+    setPlanModal({skillId});
+  }
+  function savePlan() {
+    if(!planForm.topic.trim()||!planForm.date) { alert("Please fill Topic and Training Date."); return; }
+    const t={id:"t"+Date.now(),topic:planForm.topic,trainer:planForm.trainer,date:planForm.date,type:planForm.type,nextDate:planForm.nextDate,status:"planned",evidence:"",pass:null,evalNotes:""};
+    onUpdate({...emp, skills:(emp.skills||[]).map(s=>s.id===planModal.skillId?{...s,trainings:[...(s.trainings||[]),t]}:s)});
+    setPlanModal(null);
+  }
+
+  // --- Evidence ---
+  function openEvidModal(skillId,tIdx) { setEvidText(""); setEvidFile(null); setEvidModal({skillId,tIdx}); }
+  function saveEvidence() {
+    if(!evidText.trim() && !evidFile) { alert("Please provide details or attach a file as evidence."); return; }
+    onUpdate({...emp, skills:(emp.skills||[]).map(s=>{
+      if(s.id!==evidModal.skillId) return s;
+      const ts=[...(s.trainings||[])];
+      ts[evidModal.tIdx]={...ts[evidModal.tIdx],evidence:evidText,evidenceFile:evidFile,status:"evidence_done"};
+      return {...s,trainings:ts};
+    })});
+    setEvidModal(null);
+  }
+
+  function handleEvidFile(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    compressImage(file, res => { if(res) setEvidFile(res); });
+  }
+
+  // --- Evaluation ---
+  function openEvalModal(skillId,tIdx) { 
+    setEvalForm({evaluatorName:"", evalDate:new Date().toISOString().split("T")[0], method:"Practical Test", score:"", pass:null, notes:"", evalFile:null}); 
+    setEvalModal({skillId,tIdx}); 
+  }
+  
+  function handleEvalFile(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    compressImage(file, res => { if(res) setEvalForm(f => ({...f, evalFile:res})); });
+  }
+  function saveEvaluation() {
+    if(evalForm.pass===null || !evalForm.evaluatorName?.trim() || !evalForm.score?.trim() || !evalForm.evalFile) { 
+      alert("Please complete all required fields and upload the Evaluation Evidence file."); 
+      return; 
+    }
+    onUpdate({...emp, skills:(emp.skills||[]).map(s=>{
+      if(s.id!==evalModal.skillId) return s;
+      const ts=[...(s.trainings||[])];
+      const updated={...ts[evalModal.tIdx], pass:evalForm.pass, evalNotes:evalForm.notes, evaluatorName:evalForm.evaluatorName, evalDate:evalForm.evalDate, evalMethod:evalForm.method, evalScore:evalForm.score, evalFile:evalForm.evalFile, status:"evaluated"};
+      ts[evalModal.tIdx]=updated;
+      let cur=s.current;
+      if(evalForm.pass===true) cur=Math.min(s.required,s.current+1);
+      return {...s,current:cur,trainings:ts};
+    })});
+    setEvalModal(null);
+  }
+  function doRedoPlan(skillId,tIdx) {
+    // Reset the failed training to planned for redo
+    onUpdate({...emp, skills:(emp.skills||[]).map(s=>{
+      if(s.id!==skillId) return s;
+      const ts=[...(s.trainings||[])];
+      ts[tIdx]={...ts[tIdx],status:"planned",evidence:"",pass:null,evalNotes:"",date:"",evalDate:""};
+      return {...s,trainings:ts};
+    })});
+  }
+  function doDeleteTraining(skillId,tIdx) {
+    if(!window.confirm("Remove this training record?")) return;
+    onUpdate({...emp, skills:(emp.skills||[]).map(s=>{
+      if(s.id!==skillId) return s;
+      const ts=[...(s.trainings||[])]; ts.splice(tIdx,1);
+      return {...s,trainings:ts};
+    })});
+  }
+
+  const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white";
+  const inpSm = "border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 bg-white w-full";
+
+  return (
+    <div className="h-full flex flex-col bg-white">
+      {/* Header */}
+      <div className="flex-shrink-0 border-b border-gray-200 p-5">
+        <div className="flex items-start gap-3">
+          <AvatarCircle emp={emp} size={48}/>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-gray-900 text-lg leading-tight">{emp.name}</h2>
+            <div className="text-sm text-gray-500">{emp.designation}</div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{background:getDC(emp.department)}}></div><span className="text-xs text-gray-400">{emp.department}</span></div>
+              <span className="text-gray-200">·</span>
+              <span className="text-xs text-gray-400">{emp.cardNo}</span>
+              <GapBadge pct={pct}/>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><IC.x className="w-5 h-5"/></button>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div style={{width:(100-pct)+"%",height:"100%",background:pct===0?"#16A34A":pct<=25?"#CA8A04":"#DC2626",borderRadius:9999}}></div>
+          </div>
+          <span className="text-xs font-mono text-gray-500">{100-pct}% competent</span>
+        </div>
+      </div>
+      {/* Tabs */}
+      <div className="flex-shrink-0 flex border-b border-gray-200 px-5 gap-4">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} className={`tab-btn py-3 text-sm ${tab===t.id?"active":""}`}>{t.label}</button>
+        ))}
+      </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5">
+
+        {/* ── PROFILE ─────────────────────────────────────────── */}
+        {tab==="profile"&&(
+          <div className="space-y-4">
+            {!editMode?(
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {[["Employee ID",emp.id],["Card No",emp.cardNo],["Date of Birth",fmtDate(emp.dob)],["Date of Joining",fmtDate(emp.doj)],["Designation",emp.designation],["Department",emp.department],["Reporting To",manager?manager.name:"—"]].map(([l,v])=>(
+                    <div key={l} className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-xs text-gray-400 mb-0.5">{l}</div>
+                      <div className="text-sm font-semibold text-gray-800">{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={startEdit} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100">
+                  <IC.edit className="w-4 h-4"/>Edit Profile
+                </button>
+              </>
+            ):(
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-gray-700 mb-1">Edit Employee Profile</div>
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden relative group cursor-pointer" onClick={()=>document.getElementById('editPhotoInput').click()}>
+                    {editData.photo ? <img src={editData.photo} className="w-full h-full object-cover"/> : <IC.user className="w-6 h-6 text-gray-400"/>}
+                    <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center fade-in">
+                      <IC.upload className="w-5 h-5 text-white"/>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-800">Profile Picture</div>
+                    <div className="text-xs text-gray-400">Click to upload (Auto-compressed)</div>
+                  </div>
+                  <input type="file" id="editPhotoInput" className="hidden" accept="image/*" onChange={(e)=>{
+                    const file=e.target.files[0];
+                    if(!file)return;
+                    compressImage(file, res => { if(res) setEditData({...editData, photo:res.url}); });
+                  }}/>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><div className="text-xs text-gray-400 mb-1">Full Name</div><input value={editData.name} onChange={e=>setEditData({...editData,name:e.target.value})} className={inpSm}/></div>
+                  <div><div className="text-xs text-gray-400 mb-1">Card No</div><input value={editData.cardNo} onChange={e=>setEditData({...editData,cardNo:e.target.value})} className={inpSm}/></div>
+                  <div><div className="text-xs text-gray-400 mb-1">Date of Birth</div><input type="date" value={editData.dob} onChange={e=>setEditData({...editData,dob:e.target.value})} className={inpSm}/></div>
+                  <div><div className="text-xs text-gray-400 mb-1">Date of Joining</div><input type="date" value={editData.doj} onChange={e=>setEditData({...editData,doj:e.target.value})} className={inpSm}/></div>
+                  <div><div className="text-xs text-gray-400 mb-1">Designation</div><input value={editData.designation} onChange={e=>setEditData({...editData,designation:e.target.value})} className={inpSm}/></div>
+                  <div><div className="text-xs text-gray-400 mb-1">Department</div>
+                    <select value={editData.department} onChange={e=>setEditData({...editData,department:e.target.value})} className={inpSm}>
+                      {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-2"><div className="text-xs text-gray-400 mb-1">Reporting To (Employee ID)</div>
+                    <select value={editData.reportsTo||""} onChange={e=>setEditData({...editData,reportsTo:e.target.value||null})} className={inpSm}>
+                      <option value="">— None —</option>
+                      {allEmps.filter(e=>e.id!==emp.id).map(e=><option key={e.id} value={e.id}>{e.name} ({e.designation})</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={saveEdit} className="flex-1 bg-blue-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-blue-700">Save Changes</button>
+                  <button onClick={()=>setEditMode(false)} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SKILLS ──────────────────────────────────────────── */}
+        {tab==="skills"&&(
+          <div className="space-y-3">
+            {/* Auto-prompt banner if gaps without training plan */}
+            {autoPrompt&&gapSkillsNoTrain.length>0&&(
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
+                <IC.alert className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5"/>
+                <div className="flex-1">
+                  <div className="font-semibold text-orange-800 text-sm">{gapSkillsNoTrain.length} skill{gapSkillsNoTrain.length>1?"s":""} below required — Training Plan needed!</div>
+                  <div className="text-xs text-orange-600 mt-0.5">Skills highlighted in red below have no training plan yet. Click <strong>Create Plan</strong> to start the training workflow.</div>
+                </div>
+                <button onClick={()=>setAutoPrompt(false)} className="text-orange-300 hover:text-orange-500"><IC.x className="w-4 h-4"/></button>
+              </div>
+            )}
+
+            {(emp.skills||[]).length===0&&!addingSkill&&<div className="text-center py-6 text-gray-400 text-sm">No skills added yet.</div>}
+
+            {(emp.skills||[]).map(sk=>{
+              const g=sk.required-sk.current;
+              const col=g<=0?"#16A34A":g===1?"#CA8A04":"#DC2626";
+              const hasGap=g>0;
+              const hasTraining=(sk.trainings||[]).length>0;
+              return (
+                <div key={sk.id} className={`border rounded-xl p-4 ${hasGap&&!hasTraining?"border-orange-200 bg-orange-50/30":hasGap?"border-yellow-200":"border-gray-200"}`}>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <div className="font-semibold text-gray-800 text-sm">{sk.name}</div>
+                      <div className="text-xs mt-0.5 flex items-center gap-2" style={{color:col}}>
+                        {g<=0?"✓ Competent":g===1?"△ Minor Gap":"⚠ Critical Gap"}
+                        {hasGap&&!hasTraining&&<span className="bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-xs font-semibold">No Plan</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      {(sk.trainings||[]).length>0 && (
+                        <button onClick={()=>toggleSkill(sk.id)} className="p-1 px-2 flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-50 border border-gray-200 rounded transition-colors mr-2">
+                          {expandedSkills[sk.id]?<IC.chevronUp className="w-3 h-3"/>:<IC.chevronDown className="w-3 h-3"/>} History ({(sk.trainings||[]).length})
+                        </button>
+                      )}
+                      {hasGap&&<button onClick={()=>openPlanModal(sk.id)} className="text-xs text-orange-600 border border-orange-200 bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 font-semibold">+ Create Plan</button>}
+                      <button onClick={()=>doDeleteSkill(sk.id)} className="text-xs text-red-400 hover:text-red-600 p-1"><IC.trash className="w-3.5 h-3.5"/></button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Required Level</div>
+                      <div className="flex items-center gap-1">
+                        {[1,2,3,4,5].map(n=><button key={n} onClick={()=>doUpdateLevel(sk.id,"required",n)} className="w-7 h-7 rounded text-xs font-bold border transition-colors" style={{background:n<=sk.required?"#2563EB":"#F3F4F6",color:n<=sk.required?"#fff":"#9CA3AF",borderColor:n<=sk.required?"#2563EB":"#E5E7EB"}}>{n}</button>)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Current Level</div>
+                      <div className="flex items-center gap-1">
+                        {[1,2,3,4,5].map(n=><button key={n} onClick={()=>doUpdateLevel(sk.id,"current",n)} className="w-7 h-7 rounded text-xs font-bold border transition-colors" style={{background:n<=sk.current?col:"#F3F4F6",color:n<=sk.current?"#fff":"#9CA3AF",borderColor:n<=sk.current?col:"#E5E7EB"}}>{n}</button>)}
+                      </div>
+                    </div>
+                  </div>
+                  <SkillBar current={sk.current} required={sk.required}/>
+
+                  {/* Training records for this skill */}
+                  {expandedSkills[sk.id] && (sk.trainings||[]).length>0 && (
+                    <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
+                      {sk.trainings.map((t,ti)=>{
+                        const st=getTStatus(t);
+                        const bgC=st==="evaluated"&&t.pass===true?"bg-green-50 border-green-200":st==="evaluated"&&t.pass===false?"bg-red-50 border-red-200":st==="evidence_done"?"bg-blue-50 border-blue-200":"bg-gray-50 border-gray-200";
+                        return (
+                          <div key={ti} className={`rounded-lg p-3 border text-xs ${bgC}`}>
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="font-semibold text-gray-700">{t.topic}</div>
+                              <div className="flex items-center gap-1">
+                                {/* Workflow status pill */}
+                                {st==="planned"&&<span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-semibold">📋 Planned</span>}
+                                {st==="evidence_done"&&<span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">📁 Evidence Done</span>}
+                                {st==="evaluated"&&t.pass===true&&<span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">✓ Passed</span>}
+                                {st==="evaluated"&&t.pass===false&&<span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">✗ Failed</span>}
+                                <button onClick={()=>doDeleteTraining(sk.id,ti)} className="text-gray-300 hover:text-red-400 ml-1"><IC.x className="w-3.5 h-3.5"/></button>
+                              </div>
+                            </div>
+                            <div className="text-gray-400">{t.trainer&&`${t.trainer} · `}{t.type} · Target: {fmtDate(t.date)}</div>
+                            
+                            {(t.evidence||t.evidenceFile)&&(
+                              <div className="mt-2 text-gray-500 bg-white/80 rounded p-2 flex flex-col gap-1.5 text-xs shadow-sm">
+                                <div className="font-semibold text-gray-700 mb-0.5 border-b border-gray-100 pb-1">Training Execution Evidence</div>
+                                {t.evidence&&<div>📝 Details: {t.evidence}</div>}
+                                {t.evidenceFile&&(
+                                  <button onClick={()=>downloadDataUrl(t.evidenceFile.url, t.evidenceFile.name)} className="self-start flex items-center gap-1 bg-white text-blue-700 border border-blue-200 px-2 py-1 rounded font-semibold hover:bg-blue-50 transition shadow-sm">
+                                    <IC.download className="w-3 h-3"/> Download Training File
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
+                            {st==="evaluated"&&(
+                              <div className="mt-2 text-gray-600 bg-purple-50 border border-purple-100/50 rounded p-2 text-xs shadow-sm">
+                                <div className="font-semibold text-purple-800 mb-1 border-b border-purple-200/50 pb-1">Evaluation Details</div>
+                                <div className="grid grid-cols-2 gap-1 mb-1.5">
+                                  <div><span className="text-gray-400">Evaluator:</span> <span className="font-medium text-gray-800">{t.evaluatorName}</span></div>
+                                  <div><span className="text-gray-400">Date:</span> <span className="font-medium text-gray-800">{fmtDate(t.evalDate)}</span></div>
+                                  <div><span className="text-gray-400">Method:</span> <span className="font-medium text-gray-800">{t.evalMethod}</span></div>
+                                  <div><span className="text-gray-400">Target Score:</span> <span className="font-medium text-gray-800">{t.evalScore}</span></div>
+                                </div>
+                                {t.evalNotes&&<div className="mb-1.5">📝 Notes: {t.evalNotes}</div>}
+                                {t.evalFile&&(
+                                  <button onClick={()=>downloadDataUrl(t.evalFile.url, t.evalFile.name)} className="self-start flex items-center gap-1 bg-white text-purple-700 border border-purple-200 px-2 py-0.5 mt-0.5 rounded font-semibold hover:bg-purple-100 transition shadow-sm">
+                                    <IC.download className="w-3 h-3"/> Download Eval Sheet
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Action buttons based on workflow state */}
+                            <div className="mt-2 flex gap-2">
+                              {st==="planned"&&(
+                                <button onClick={()=>openEvidModal(sk.id,ti)} className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700">
+                                  <IC.fileCheck className="w-3 h-3"/>Upload Evidence
+                                </button>
+                              )}
+                              {st==="evidence_done"&&(
+                                <button onClick={()=>openEvalModal(sk.id,ti)} className="flex items-center gap-1 bg-purple-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-purple-700">
+                                  <IC.clipCheck className="w-3 h-3"/>Start Evaluation
+                                </button>
+                              )}
+                              {st==="evaluated"&&t.pass===false&&(
+                                <button onClick={()=>doRedoPlan(sk.id,ti)} className="flex items-center gap-1 bg-orange-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-orange-600">
+                                  <IC.refresh className="w-3 h-3"/>Redo Training Plan
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Add Skill */}
+            {addingSkill?(
+              <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 space-y-3">
+                <div className="text-sm font-semibold text-blue-800">Add New Skill</div>
+                <input value={newSkill.name} onChange={e=>setNewSkill({...newSkill,name:e.target.value})} placeholder="Skill name *" className={inp} autoFocus/>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">Required Level (1–5)</div>
+                    <div className="flex gap-1">{[1,2,3,4,5].map(n=><button key={n} onClick={()=>setNewSkill({...newSkill,required:n})} className="w-8 h-8 rounded text-xs font-bold border" style={{background:n<=newSkill.required?"#2563EB":"#F3F4F6",color:n<=newSkill.required?"#fff":"#9CA3AF",borderColor:n<=newSkill.required?"#2563EB":"#E5E7EB"}}>{n}</button>)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">Current Level (1–5)</div>
+                    <div className="flex gap-1">{[1,2,3,4,5].map(n=><button key={n} onClick={()=>setNewSkill({...newSkill,current:n})} className="w-8 h-8 rounded text-xs font-bold border" style={{background:n<=newSkill.current?"#16A34A":"#F3F4F6",color:n<=newSkill.current?"#fff":"#9CA3AF",borderColor:n<=newSkill.current?"#16A34A":"#E5E7EB"}}>{n}</button>)}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={doAddSkill} className="flex-1 bg-blue-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-blue-700">Add Skill</button>
+                  <button onClick={()=>setAddingSkill(false)} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                </div>
+              </div>
+            ):(
+              <button onClick={()=>setAddingSkill(true)} className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                <IC.plus className="w-4 h-4"/><span>Add Skill</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── TRAINING ────────────────────────────────────────── */}
+        {tab==="training"&&(
+          <div className="space-y-3">
+            {allTrainings.length===0&&<div className="text-center py-8 text-gray-400 text-sm"><IC.book className="w-8 h-8 mx-auto mb-2 text-gray-300"/>No training records. Go to Skills tab to create a plan.</div>}
+            {allTrainings.map((t,i)=>{
+              const st=getTStatus(t);
+              return (
+                <div key={i} className={`rounded-xl border p-4 ${st==="evaluated"&&t.pass===true?"border-green-200 bg-green-50":st==="evaluated"&&t.pass===false?"border-red-200 bg-red-50":st==="evidence_done"?"border-blue-200 bg-blue-50":"border-gray-200"}`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm text-gray-800">{t.topic}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">Skill: {t.skillName} · {t.trainer} · {t.type}</div>
+                      <div className="text-xs text-gray-400 mb-2">Training Target: {fmtDate(t.date)}</div>
+                      
+                      {(t.evidence||t.evidenceFile)&&(
+                        <div className="mt-1 text-xs text-gray-500 border-l-2 border-blue-200 pl-2">
+                          {t.evidence&&<div className="mb-1">📝 Execution Details: {t.evidence}</div>}
+                          {t.evidenceFile&&<button onClick={()=>downloadDataUrl(t.evidenceFile.url, t.evidenceFile.name)} className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold underline underline-offset-2"><IC.download className="w-3 h-3"/> Download Evidence: {t.evidenceFile.name}</button>}
+                        </div>
+                      )}
+
+                      {st==="evaluated"&&(
+                        <div className="mt-2 text-xs text-gray-600 border-l-2 border-purple-200 pl-2 bg-purple-50/50 py-1">
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                            <div><span className="text-gray-400">Assessor:</span> <span className="font-medium text-gray-800">{t.evaluatorName}</span></div>
+                            <div><span className="text-gray-400">Date:</span> <span className="font-medium text-gray-800">{fmtDate(t.evalDate)}</span></div>
+                            <div><span className="text-gray-400">Method:</span> <span className="font-medium text-gray-800">{t.evalMethod}</span></div>
+                            <div><span className="text-gray-400">Target Score:</span> <span className="font-medium text-gray-800">{t.evalScore}</span></div>
+                          </div>
+                          {t.evalNotes&&<div className="mt-1">📝 Notes: {t.evalNotes}</div>}
+                          {t.evalFile&&<button onClick={()=>downloadDataUrl(t.evalFile.url, t.evalFile.name)} className="flex items-center gap-1 text-purple-600 hover:text-purple-800 font-semibold underline underline-offset-2 mt-1"><IC.download className="w-3 h-3"/> Download Eval Sheet: {t.evalFile.name}</button>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-xs px-2 py-1 rounded font-bold ${st==="evaluated"&&t.pass===true?"bg-green-100 text-green-700":st==="evaluated"&&t.pass===false?"bg-red-100 text-red-700":st==="evidence_done"?"bg-blue-100 text-blue-700":"bg-gray-100 text-gray-500"}`}>
+                        {st==="evaluated"&&t.pass===true?"✓ Passed":st==="evaluated"&&t.pass===false?"✗ Failed":st==="evidence_done"?"📁 Evidence Done":"📋 Planned"}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Workflow steps mini-bar */}
+                  <div className="mt-3 flex items-center gap-1">
+                    {[{l:"Plan Created",done:true},{l:"Evidence",done:st==="evidence_done"||st==="evaluated"},{l:"Evaluation",done:st==="evaluated"},{l:"Result",done:st==="evaluated"&&t.pass!==null}].map((step,si)=>(
+                      <div key={si} className="flex items-center gap-1">
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${step.done?"bg-green-100 text-green-700":"bg-gray-100 text-gray-400"}`}>
+                          {step.done&&<IC.check className="w-2.5 h-2.5"/>}{step.l}
+                        </div>
+                        {si<3&&<div className={`w-3 h-0.5 ${step.done?"bg-green-400":"bg-gray-200"}`}></div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── JOB DESCRIPTION ─────────────────────────────────── */}
+        {tab==="jd"&&(
+          <div className="space-y-4">
+            {!editMode?(
+              <>
+                {[["Responsibility",emp.responsibility],["Accountability",emp.accountability],["Authority",emp.authority]].map(([l,v])=>(
+                  <div key={l} className="border border-gray-200 rounded-xl p-4">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{l}</div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{v||"—"}</p>
+                  </div>
+                ))}
+                <button onClick={startEdit} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100">
+                  <IC.edit className="w-4 h-4"/>Edit Job Description
+                </button>
+              </>
+            ):(
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-gray-700">Edit Job Description</div>
+                {[["responsibility","Responsibility"],["accountability","Accountability"],["authority","Authority"]].map(([k,l])=>(
+                  <div key={k}>
+                    <div className="text-xs text-gray-400 mb-1">{l}</div>
+                    <textarea rows={3} value={editData[k]||""} onChange={e=>setEditData({...editData,[k]:e.target.value})} className={inp}/>
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={saveEdit} className="flex-1 bg-blue-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-blue-700">Save Changes</button>
+                  <button onClick={()=>setEditMode(false)} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TEAM ────────────────────────────────────────────── */}
+        {tab==="team"&&(
+          <div className="space-y-3">
+            {manager&&(
+              <div className="mb-4">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Reports To</div>
+                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                  <AvatarCircle emp={manager} size={36}/>
+                  <div>
+                    <div className="font-semibold text-gray-800 text-sm">{manager.name}</div>
+                    <div className="text-xs text-gray-400">{manager.designation} · {manager.department}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Direct Reports ({reports.length})</div>
+            {reports.length===0&&<div className="text-sm text-gray-400 py-4 text-center">No direct reports.</div>}
+            {reports.map(r=>(
+              <div key={r.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl">
+                <AvatarCircle emp={r} size={36}/>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-800 text-sm">{r.name}</div>
+                  <div className="text-xs text-gray-400">{r.designation} · {r.department}</div>
+                </div>
+                <GapBadge pct={getGap(r).pct}/>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── TRAINING PLAN MODAL ──────────────────────────────── */}
+      {planModal&&(
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-gray-100 flex items-center gap-3 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center"><IC.calendar className="w-5 h-5 text-orange-600"/></div>
+              <div>
+                <div className="font-bold text-gray-900">Create Training Plan</div>
+                <div className="text-xs text-gray-400">Skill: {(emp.skills||[]).find(s=>s.id===planModal.skillId)?.name}</div>
+              </div>
+              <button onClick={()=>setPlanModal(null)} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600"><IC.x className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-3 overflow-y-auto">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
+                <strong>Workflow:</strong> Plan Created → Evidence Uploaded → Evaluation → Result (Pass/Fail)
+              </div>
+              <input value={planForm.topic} onChange={e=>setPlanForm({...planForm,topic:e.target.value})} placeholder="Training topic *" className={inp}/>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={planForm.trainer} onChange={e=>setPlanForm({...planForm,trainer:e.target.value})} placeholder="Trainer / Provider" className={inp}/>
+                <select value={planForm.type} onChange={e=>setPlanForm({...planForm,type:e.target.value})} className={inp}>
+                  {["Classroom","On-the-Job","Workshop","E-Learning","Simulation"].map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><div className="text-xs text-gray-400 mb-1">Training Date *</div><input type="date" value={planForm.date} onChange={e=>setPlanForm({...planForm,date:e.target.value})} className={inp}/></div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={savePlan} className="flex-1 bg-orange-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-orange-700">Confirm Training Plan</button>
+                <button onClick={()=>setPlanModal(null)} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EVIDENCE MODAL ──────────────────────────────────── */}
+      {evidModal&&(
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-gray-100 flex items-center gap-3 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center"><IC.fileCheck className="w-5 h-5 text-blue-600"/></div>
+              <div>
+                <div className="font-bold text-gray-900">Upload Training Evidence</div>
+                <div className="text-xs text-gray-400">Confirm training was completed before evaluation</div>
+              </div>
+              <button onClick={()=>setEvidModal(null)} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600"><IC.x className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-3 overflow-y-auto">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+                Evidence is <strong>mandatory</strong> before evaluation. Describe the proof of training or upload a file (e.g. attendance record, certificate, photos).
+              </div>
+              <textarea rows={3} value={evidText} onChange={e=>setEvidText(e.target.value)} placeholder="Describe evidence (optional if attaching file)..." className={inp}/>
+              
+              <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
+                <input type="file" id="evidFileInput" className="hidden" onChange={handleEvidFile} accept="image/*,.pdf,.doc,.docx" />
+                <label htmlFor="evidFileInput" className="cursor-pointer flex flex-col items-center justify-center">
+                  <IC.upload className="w-5 h-5 text-gray-500 mb-1"/>
+                  <span className="text-xs font-semibold text-blue-600">Click to attach file</span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">Images or PDFs (Max 1.5MB)</span>
+                </label>
+                {evidFile && (
+                  <div className="mt-3 text-xs text-green-700 bg-green-50 py-1.5 px-2 rounded font-medium border border-green-200 flex items-center gap-1.5 justify-center shadow-sm">
+                    <IC.fileCheck className="w-3.5 h-3.5"/> Attached: {evidFile.name}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button onClick={saveEvidence} className="flex-1 bg-blue-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-blue-700">Confirm Evidence & Unlock Evaluation</button>
+                <button onClick={()=>setEvidModal(null)} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EVALUATION MODAL ────────────────────────────────── */}
+      {evalModal&&(
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-gray-100 flex items-center gap-3 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><IC.clipCheck className="w-5 h-5 text-purple-600"/></div>
+              <div>
+                <div className="font-bold text-gray-900">Training Evaluation Form</div>
+                <div className="text-xs text-gray-400">Record the evaluation result for this training</div>
+              </div>
+              <button onClick={()=>setEvalModal(null)} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600"><IC.x className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
+                <strong>Pass:</strong> Skill level will increase by 1 point automatically.<br/>
+                <strong>Fail:</strong> Training plan will need to be redone.
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div><div className="text-xs text-gray-500 mb-1">Evaluator Name *</div><input value={evalForm.evaluatorName} onChange={e=>setEvalForm({...evalForm,evaluatorName:e.target.value})} className={inp} placeholder="Assessor Name"/></div>
+                <div><div className="text-xs text-gray-500 mb-1">Evaluation Date *</div><input type="date" value={evalForm.evalDate} onChange={e=>setEvalForm({...evalForm,evalDate:e.target.value})} className={inp}/></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><div className="text-xs text-gray-500 mb-1">Method</div>
+                  <select value={evalForm.method} onChange={e=>setEvalForm({...evalForm,method:e.target.value})} className={inp}>
+                    {["Practical Test","Written Test","Oral Interview","Demonstration"].map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div><div className="text-xs text-gray-500 mb-1">Score / Percentage *</div><input value={evalForm.score} onChange={e=>setEvalForm({...evalForm,score:e.target.value})} className={inp} placeholder="e.g. 85% or 8/10"/></div>
+              </div>
+
+              <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
+                <input type="file" id="evalFileInput" className="hidden" onChange={handleEvalFile} accept="image/*,.pdf,.doc,.docx" />
+                <label htmlFor="evalFileInput" className="cursor-pointer flex flex-col items-center justify-center">
+                  <IC.upload className="w-5 h-5 text-gray-500 mb-1"/>
+                  <span className="text-xs font-semibold text-purple-600">Click to upload evaluation proof</span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">Images will be auto-compressed</span>
+                </label>
+                {evalForm.evalFile && (
+                  <div className="mt-2 text-xs text-purple-700 bg-purple-50 py-1.5 px-2 rounded font-medium border border-purple-200 flex items-center gap-1.5 justify-center shadow-sm">
+                    <IC.fileCheck className="w-3.5 h-3.5"/> Attached: {evalForm.evalFile.name}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="text-sm font-semibold text-gray-700 mb-2">Final Conclusion *</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={()=>setEvalForm({...evalForm,pass:true})} className={`py-3 rounded-xl font-bold text-sm border-2 transition-all ${evalForm.pass===true?"border-green-500 bg-green-50 text-green-700":"border-gray-200 bg-gray-50 text-gray-500 hover:border-green-300"}`}>
+                    ✓ PASS<div className="text-xs font-normal mt-0.5 opacity-70">Skill level +1</div>
+                  </button>
+                  <button onClick={()=>setEvalForm({...evalForm,pass:false})} className={`py-3 rounded-xl font-bold text-sm border-2 transition-all ${evalForm.pass===false?"border-red-500 bg-red-50 text-red-700":"border-gray-200 bg-gray-50 text-gray-500 hover:border-red-300"}`}>
+                    ✗ FAIL<div className="text-xs font-normal mt-0.5 opacity-70">Redo training</div>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <textarea rows={2} value={evalForm.notes} onChange={e=>setEvalForm({...evalForm,notes:e.target.value})} placeholder="Additional notes, areas of improvement..." className={inp}/>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={saveEvaluation} className="flex-1 bg-purple-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-purple-700">Submit Evaluation</button>
+                <button onClick={()=>setEvalModal(null)} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ADD EMPLOYEE MODAL ───────────────────────────────────────────────────
+function AddEmployeeModal({allEmps,onSave,onClose}) {
+  const [form,setForm] = useState({name:"",cardNo:"",dob:"",doj:"",designation:"",department:DEPARTMENTS[0],reportsTo:"",responsibility:"",accountability:"",authority:"",photo:null});
+  const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white";
+  function save() {
+    if(!form.name.trim()||!form.designation.trim()) { alert("Name and Designation are required."); return; }
+    const id = "E"+String(Date.now()).slice(-4);
+    onSave({...form,id,reportsTo:form.reportsTo||null,photo:form.photo||null,skills:[],team:[]});
+  }
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto">
+        <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center"><IC.user className="w-5 h-5 text-green-600"/></div>
+          <div><div className="font-bold text-gray-900">Add New Employee</div><div className="text-xs text-gray-400">Fill in the details to create a new employee record</div></div>
+          <button onClick={onClose} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600"><IC.x className="w-5 h-5"/></button>
+        </div>
+        <div className="p-5 space-y-3 overflow-y-auto">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="w-16 h-16 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden relative group cursor-pointer" onClick={()=>document.getElementById('empPhotoInput').click()}>
+              {form.photo ? <img src={form.photo} className="w-full h-full object-cover"/> : <IC.user className="w-6 h-6 text-gray-400"/>}
+              <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center fade-in">
+                <IC.upload className="w-5 h-5 text-white"/>
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-gray-800">Profile Picture</div>
+              <div className="text-xs text-gray-400">Click to upload (Auto-compressed)</div>
+            </div>
+            <input type="file" id="empPhotoInput" className="hidden" accept="image/*" onChange={(e)=>{
+              const file=e.target.files[0];
+              if(!file)return;
+              compressImage(file, res => { if(res) setForm({...form, photo:res.url}); });
+            }}/>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><div className="text-xs text-gray-400 mb-1">Full Name *</div><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Rahul Sharma" className={inp}/></div>
+            <div><div className="text-xs text-gray-400 mb-1">Card No</div><input value={form.cardNo} onChange={e=>setForm({...form,cardNo:e.target.value})} placeholder="C-XXX" className={inp}/></div>
+            <div><div className="text-xs text-gray-400 mb-1">Designation *</div><input value={form.designation} onChange={e=>setForm({...form,designation:e.target.value})} placeholder="e.g. CNC Operator" className={inp}/></div>
+            <div><div className="text-xs text-gray-400 mb-1">Department</div>
+              <select value={form.department} onChange={e=>setForm({...form,department:e.target.value})} className={inp}>
+                {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+              </select>
+            </div>
+            <div><div className="text-xs text-gray-400 mb-1">Reports To</div>
+              <select value={form.reportsTo} onChange={e=>setForm({...form,reportsTo:e.target.value})} className={inp}>
+                <option value="">— None —</option>
+                {allEmps.map(e=><option key={e.id} value={e.id}>{e.name} ({e.designation})</option>)}
+              </select>
+            </div>
+            <div><div className="text-xs text-gray-400 mb-1">Date of Birth</div><input type="date" value={form.dob} onChange={e=>setForm({...form,dob:e.target.value})} className={inp}/></div>
+            <div><div className="text-xs text-gray-400 mb-1">Date of Joining</div><input type="date" value={form.doj} onChange={e=>setForm({...form,doj:e.target.value})} className={inp}/></div>
+          </div>
+          <div className="text-xs text-gray-400 uppercase font-semibold mt-2 mb-1">Job Description (Optional)</div>
+          {[["responsibility","Responsibility"],["accountability","Accountability"],["authority","Authority"]].map(([k,l])=>(
+            <div key={k}><div className="text-xs text-gray-400 mb-1">{l}</div><textarea rows={2} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={`Enter ${l.toLowerCase()}...`} className={inp}/></div>
+          ))}
+          <div className="flex gap-2 pt-2">
+            <button onClick={save} className="flex-1 bg-green-600 text-white text-sm font-semibold rounded-lg py-2.5 hover:bg-green-700">Add Employee</button>
+            <button onClick={onClose} className="px-4 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOGIN PAGE ───────────────────────────────────────────────────────────
+function LoginPage({onLogin}) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  function handleSub(e){
+    e.preventDefault();
+    if(!username||!password){ setError("Please enter username and password"); return; }
+    onLogin(username, password, setError);
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100 via-white to-gray-50">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md fade-up">
+        <div className="flex justify-center mb-6">
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-lg" style={{background:"linear-gradient(135deg,#0DA5C3 0%,#0891b2 100%)",boxShadow:"0 8px 32px rgba(13,165,195,0.3)"}}>
+            <span className="text-white font-black text-3xl tracking-tight">EJ</span>
+          </div>
+        </div>
+        <h2 className="mt-4 text-center text-2xl font-extrabold text-[#0DA5C3] tracking-wide uppercase">Echjay Industries</h2>
+        <h3 className="text-center text-sm font-semibold text-gray-500 tracking-widest uppercase mt-1">Skill Management ERP</h3>
+        <p className="mt-2 text-center text-sm text-gray-600">Enter your credentials to access the system</p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md fade-up" style={{animationDelay:"0.1s"}}>
+        <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100 relative overflow-hidden">
+          {error && <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-md fade-up">
+            <p className="text-sm text-red-700 font-medium">{error}</p>
+          </div>}
+          <form className="space-y-6" onSubmit={handleSub}>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700">Username</label>
+              <div className="mt-1 relative">
+                <input autoFocus value={username} onChange={e=>{setUsername(e.target.value);setError("")}} type="text" className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm bg-gray-50" placeholder="e.g. admin"/>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700">Password</label>
+              <div className="mt-1">
+                <input value={password} onChange={e=>{setPassword(e.target.value);setError("")}} type="password" className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm bg-gray-50" placeholder="••••••••"/>
+              </div>
+            </div>
+            <div>
+              <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all hover:-translate-y-0.5 mt-2">
+                Sign in securely
+              </button>
+            </div>
+          </form>
+          <div className="mt-6 text-center text-xs text-gray-400">
+            For demo purposes try <strong className="text-gray-600">admin / 123</strong> or <strong className="text-gray-600">production / 123</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────
+function App() {
+  const [users, setUsers] = useState([]);
+  const [emps, setEmps] = useState([]);
+  const [dbReady, setDbReady] = useState(false);
+
+  const fetchDb = async () => {
+    try {
+      const [uRes, eRes] = await Promise.all([fetch(SERVER+'/api/users'), fetch(SERVER+'/api/employees')]);
+      const dbUsers = await uRes.json();
+      const dbEmps = await eRes.json();
+      
+      if (dbUsers.length === 0) {
+        await fetch(SERVER+'/api/users/init', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(INITIAL_USERS) });
+      } else setUsers(dbUsers);
+      
+      if (dbEmps.length === 0) {
+        await fetch(SERVER+'/api/employees/init', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(INITIAL_EMPLOYEES) });
+      } else setEmps(dbEmps);
+      
+      setDbReady(true);
+    } catch(err) { console.error("Sync Error", err); }
+  };
+
+  useEffect(() => {
+    fetchDb();
+    const sse = new EventSource(SERVER+'/api/live');
+    sse.onmessage = (e) => fetchDb(); // Automatically re-pulls whenever ANY computer saves data!
+    return () => sse.close();
+  }, []);
+
+  const [loggedInUser, setLoggedInUser] = useState(()=>{
+    try { const local = localStorage.getItem("loggedInUser"); if(local) return JSON.parse(local); } catch(e){}
+    return null;
+  });
+  useEffect(()=>{
+    if(loggedInUser) localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
+    else localStorage.removeItem("loggedInUser");
+  }, [loggedInUser]);
+
+  function handleLogin(username, password, setError) {
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+    if(user) setLoggedInUser(user);
+    else setError("Invalid username or password");
+  }
+
+  const [page,setPage] = useState("dashboard");
+  const [col,setCol] = useState(false);
+  const [selId,setSelId] = useState(null);
+  const [drawerOpen,setDrawerOpen] = useState(false);
+  const [search,setSearch] = useState("");
+  const importRef = useRef();
+  const skillsImportRef = useRef();
+  const [importDialog,setImportDialog] = useState(false);
+  const [importResult,setImportResult] = useState(null);
+  const [skillsImportDialog,setSkillsImportDialog] = useState(false);
+  const [skillsImportResult,setSkillsImportResult] = useState(null);
+  const [addEmpModal,setAddEmpModal] = useState(false);
+
+  const selEmp = emps.find(e=>e.id===selId);
+  function openEmp(id){setSelId(id);setDrawerOpen(true);}
+  function closeDrawer(){setDrawerOpen(false);setTimeout(()=>setSelId(null),250);}
+  
+  async function updateEmp(updated){ 
+    setEmps(prev=>prev.map(e=>e.id===updated.id?updated:e)); // Optimistic UI
+    await fetch(SERVER+'/api/employees', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updated) }); 
+  }
+  async function addEmp(newEmp){ 
+    setEmps(prev=>[...prev,newEmp]); 
+    setAddEmpModal(false); 
+    await fetch(SERVER+'/api/employees', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newEmp) }); 
+  }
+
+  async function handleBatchUpdate(upsertList) {
+    setEmps(prev => {
+      let next = [...prev];
+      upsertList.forEach(u => {
+        const idx = next.findIndex(x => x.id === u.id);
+        if(idx>=0) next[idx] = u; else next.push(u);
+      });
+      return next;
+    });
+    await fetch(SERVER+'/api/employees/batch', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ upsertList }) });
+  }
+
+  // ── TEMPLATE DOWNLOADS ──
+  function downloadEmpTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Name","Card No","Designation","Department","Date of Joining","Date of Birth","Photo URL"],
+      ["Rahul Sharma","C-101","CNC Operator","2121 CNC","2023-06-01","1995-04-15","https://example.com/photo.jpg"],
+      ["Priya Mehta","C-102","HR Executive","HR","2022-01-10","1997-08-22",""],
+      ["Suresh Patel","C-103","Helper","Hot Forging","2024-03-15","2000-11-30",""],
+    ]);
+    ws["!cols"]=[{wch:22},{wch:12},{wch:24},{wch:20},{wch:18},{wch:16},{wch:30}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Employees");
+    XLSX.writeFile(wb,"Employee_Import_Template.xlsx");
+  }
+
+  function downloadSkillTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Designation","Skill Name","Required Level (1-5)"],
+      ["CNC Operator","CNC Machine Operation",4],
+      ["CNC Operator","Blueprint Reading",3],
+      ["CNC Operator","5S Implementation",3],
+      ["Helper","Basic Safety",3],
+      ["Helper","Manual Handling",2],
+      ["HR Executive","Recruitment Process",4],
+      ["HR Executive","HRMS Software",3],
+    ]);
+    ws["!cols"]=[{wch:26},{wch:28},{wch:22}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Skills by Designation");
+    XLSX.writeFile(wb,"Skills_Import_Template.xlsx");
+  }
+
+  // ── EMPLOYEE IMPORT ──
+  function smartImport(file) {
+    const r=new FileReader();
+    r.onload=function(e){
+      try {
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+        const sn=wb.SheetNames[0];
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""});
+        if(!rows.length){alert("⚠️ Sheet is empty.");return;}
+
+        // Flexible header matching
+        const headers=Object.keys(rows[0]);
+        const norm=s=>(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+        const hN=headers.map(norm);
+        const find=(kws)=>{for(const kw of kws){const i=hN.findIndex(h=>h.includes(kw));if(i>=0)return headers[i];}return null;};
+
+        const colName   = find(["name"]);
+        const colCard   = find(["cardno","card","empid","employeeid"]);
+        const colDesig  = find(["designation","position","role","title"]);
+        const colDept   = find(["department","dept"]);
+        const colDoj    = find(["doj","joining","joiningdate","dateofjoining"]);
+        const colDob    = find(["dob","birth","dateofbirth","birthdate"]);
+        const colPhoto  = find(["photo","image","picture","avatar","photourl"]);
+
+        if(!colName){alert("⚠️ Could not find a 'Name' column.\n\nPlease use the downloaded template.");return;}
+
+        const employees=rows
+          .filter(row=>(row[colName]||"").toString().trim())
+          .map(function(row,i){
+            // Parse dates — handle Excel serial numbers too
+            function parseDate(val){
+              if(!val) return "";
+              if(typeof val==="number"){
+                // Excel date serial
+                const d=XLSX.SSF.parse_date_code(val);
+                if(d) return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;
+              }
+              const s=String(val).trim();
+              // Already ISO
+              if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+              // DD/MM/YYYY or DD-MM-YYYY
+              const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+              if(m) return `${m[3].length===2?"20"+m[3]:m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+              return s;
+            }
+            return {
+              id:"IMP_"+Date.now()+"_"+i,
+              cardNo: colCard?(row[colCard]||"").toString().trim()||"C-"+(i+1):"C-"+(i+1),
+              name:   (row[colName]||"").toString().trim(),
+              designation: colDesig?(row[colDesig]||"").toString().trim():"",
+              department:  colDept?(row[colDept]||"").toString().trim():"",
+              doj:  parseDate(colDoj?row[colDoj]:""),
+              dob:  parseDate(colDob?row[colDob]:""),
+              photo: colPhoto?(row[colPhoto]||"").toString().trim()||null:null,
+              reportsTo:null,responsibility:"",accountability:"",authority:"",skills:[],team:[]
+            };
+          });
+
+        if(!employees.length){alert("⚠️ No valid employee rows found.");return;}
+        setImportResult({employees,sheetName:sn});
+        setImportDialog(true);
+      } catch(err){alert("Error reading file: "+err.message);}
+    };
+    r.readAsArrayBuffer(file);
+  }
+
+  // ── SKILLS IMPORT ──
+  function handleSkillsTemplateImport(file){
+    const r=new FileReader();
+    r.onload=function(e){
+      try {
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+        const sn=wb.SheetNames[0];
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""});
+        if(!rows.length){alert("⚠️ Sheet is empty.");return;}
+
+        const headers=Object.keys(rows[0]);
+        const norm=s=>(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+        const hN=headers.map(norm);
+        const find=(kws)=>{for(const kw of kws){const i=hN.findIndex(h=>h.includes(kw));if(i>=0)return headers[i];}return null;};
+
+        const colDesig = find(["designation","position","role"]);
+        const colSkill = find(["skill","skillname"]);
+        const colReq   = find(["required","req","level"]);
+
+        if(!colDesig||!colSkill){alert("⚠️ Columns not found.\n\nRequired columns:\n• Designation\n• Skill Name\n• Required Level (1-5)\n\nPlease use the downloaded template.");return;}
+
+        const allSkills={};
+        let lastDesig="";
+        rows.forEach(function(row){
+          const desig=(row[colDesig]||"").toString().trim();
+          const skill=(row[colSkill]||"").toString().trim();
+          // Support blank designation cells (continuation of previous)
+          if(desig) lastDesig=desig;
+          const useDesig=desig||lastDesig;
+          if(!useDesig||!skill) return;
+          const req=Math.min(5,Math.max(1,parseInt(colReq?row[colReq]:3)||3));
+          if(!allSkills[useDesig]) allSkills[useDesig]=[];
+          // Avoid duplicate skill names under same designation
+          if(!allSkills[useDesig].find(s=>s.name.toLowerCase()===skill.toLowerCase())){
+            allSkills[useDesig].push({name:skill,required:req,current:0,trainings:[]});
+          }
+        });
+
+        if(!Object.keys(allSkills).length){alert("⚠️ No valid skill rows found.\n\nMake sure Designation and Skill Name columns have data.");return;}
+
+        const existingDesigs=Array.from(new Set(emps.map(e=>e.designation)));
+        const matched=Object.keys(allSkills).filter(d=>existingDesigs.some(ed=>ed.toLowerCase()===d.toLowerCase()));
+        const unmatched=Object.keys(allSkills).filter(d=>!existingDesigs.some(ed=>ed.toLowerCase()===d.toLowerCase()));
+        const preview=matched.map(des=>({
+          designation:des,
+          skillCount:allSkills[des].length,
+          employees:emps.filter(e=>e.designation.toLowerCase()===des.toLowerCase())
+        }));
+        const totalSkills=Object.values(allSkills).reduce((s,a)=>s+a.length,0);
+        setSkillsImportResult({allSkills,matched,unmatched,totalSkills,preview});
+        setSkillsImportDialog(true);
+      } catch(err){alert("Error reading file: "+err.message);}
+    };
+    r.readAsArrayBuffer(file);
+  }
+
+  async function confirmEmpImport(mode){
+    const data=importResult.employees;
+    
+    let deleteIds = [];
+    let upsertList = [];
+    
+    if(mode==="replace"){
+      deleteIds = emps.map(e=>e.id);
+      upsertList = data.map((e,i)=>({...e, id: "E"+String(i+1).padStart(3,"0")}));
+    } else {
+      const nextIdx = emps.length + 1;
+      upsertList = data.map((e,i)=>({...e, id: "E"+String(nextIdx+i).padStart(3,"0")}));
+    }
+    
+    await fetch(SERVER+'/api/employees/batch', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ deleteIds, upsertList }) });
+    setImportDialog(false);setImportResult(null);
+    alert(`✅ ${data.length} employees ${mode==="replace"?"imported (replaced all)":"added to existing list"}`);
+  }
+
+  async function confirmSkillsImport(mode){
+    const {allSkills}=skillsImportResult;
+    let upsertList = [];
+    let updatedCnt = 0;
+    
+    emps.forEach(emp => {
+      const matchKey=Object.keys(allSkills).find(k=>k.toLowerCase()===emp.designation.toLowerCase());
+      if(matchKey) {
+        updatedCnt++;
+        const newSk=allSkills[matchKey].map((s,i)=>({...s,id:"sk"+Date.now()+i+Math.random().toString(36).slice(2,5)}));
+        let updatedSkills;
+        if(mode==="merge"){
+          const exNames=(emp.skills||[]).map(s=>s.name.toLowerCase());
+          updatedSkills = [...(emp.skills||[]),...newSk.filter(s=>!exNames.includes(s.name.toLowerCase()))];
+        } else {
+          updatedSkills = newSk;
+        }
+        upsertList.push({...emp, skills: updatedSkills});
+      }
+    });
+
+    await fetch(SERVER+'/api/employees/batch', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ upsertList }) });
+    setSkillsImportDialog(false);setSkillsImportResult(null);
+    alert(`✅ Skills applied to ${updatedCnt} employees`);
+  }
+
+  const PAGE_TITLES = {dashboard:"Dashboard",employees:"Employees",skillMatrix:"Skill Matrix",training:"Training",overdue:"Overdue Items",reports:"Reports",settings:"Settings"};
+  const sideW = col?60:240;
+
+  // Department-level filtering based on user role
+  const filteredEmps = loggedInUser?.role === "admin" ? emps : emps.filter(e => e.department === loggedInUser?.department);
+
+  if(!dbReady) return <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-medium text-gray-500 gap-3"><svg className="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>Connecting to Live Cloud...</div>;
+  if(!loggedInUser) return <LoginPage onLogin={handleLogin}/>;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar page={page} setPage={setPage} col={col} setCol={setCol} loggedInUser={loggedInUser}/>
+      <Header title={PAGE_TITLES[page]||page} search={search} setSearch={setSearch} col={col} setCol={setCol} extra={
+        <button onClick={()=>setLoggedInUser(null)} className="text-xs px-3 py-1.5 bg-red-50 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-100 transition-colors shadow-sm">Logout</button>
+      }/>
+
+      {/* Main content */}
+      <div className="transition-all pt-16" style={{marginLeft:sideW}}>
+        <div className="p-5">
+          {page==="dashboard"&&<DashboardPage emps={filteredEmps} onSelect={openEmp}/>}
+          {page==="employees"&&<EmployeesPage emps={filteredEmps} onSelect={openEmp} importRef={importRef} skillsImportRef={skillsImportRef} onImport={smartImport} onSkillsImport={handleSkillsTemplateImport} onAddEmp={()=>setAddEmpModal(true)} onDlEmpTpl={downloadEmpTemplate} onDlSkillTpl={downloadSkillTemplate}/>}
+          {page==="skillMatrix"&&<SkillMatrixPage emps={filteredEmps}/>}
+          {page==="training"&&<TrainingPage emps={filteredEmps} onSelect={openEmp} onBatchUpdate={handleBatchUpdate}/>}
+          {page==="overdue"&&<OverduePage emps={filteredEmps} onSelect={openEmp}/>}
+          {page==="reports"&&<ReportsPage emps={filteredEmps}/>}
+          {page==="settings"&&<SettingsPage loggedInUser={loggedInUser} users={users} setUsers={setUsers}/>}
+        </div>
+      </div>
+
+      {/* Hidden file inputs */}
+      <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={e=>{if(e.target.files[0])smartImport(e.target.files[0]);e.target.value="";}}/>
+      <input ref={skillsImportRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleSkillsTemplateImport(e.target.files[0]);e.target.value="";}}/>
+
+      {/* Employee Drawer */}
+      <div className={`drawer-overlay fixed inset-0 bg-black/20 z-40 ${drawerOpen?"open":""}`} onClick={closeDrawer}></div>
+      <div className={`drawer-panel fixed top-0 right-0 bottom-0 bg-white shadow-2xl z-50 flex flex-col ${drawerOpen?"open":""}`} style={{width:460}} onClick={e=>e.stopPropagation()}>
+        {selEmp&&<EmployeeDrawer emp={selEmp} allEmps={emps} onClose={closeDrawer} onUpdate={updateEmp}/>}
+      </div>
+
+      {/* Add Employee Modal */}
+      {addEmpModal&&<AddEmployeeModal allEmps={emps} onSave={addEmp} onClose={()=>setAddEmpModal(false)}/>}
+
+      {/* ── EMPLOYEE IMPORT DIALOG ── */}
+      {importDialog&&importResult&&(
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center"><IC.upload className="w-5 h-5 text-blue-600"/></div>
+              <div>
+                <div className="font-bold text-gray-900">Employee Data Ready to Import</div>
+                <div className="text-xs text-gray-400">Review and choose how to import</div>
+              </div>
+              <button onClick={()=>{setImportDialog(false);setImportResult(null);}} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600"><IC.x className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 rounded-xl p-3 text-center"><div className="text-2xl font-bold text-blue-700">{importResult.employees.length}</div><div className="text-xs text-gray-500">Employees</div></div>
+                <div className="bg-purple-50 rounded-xl p-3 text-center"><div className="text-2xl font-bold text-purple-700">{Array.from(new Set(importResult.employees.map(e=>e.designation).filter(Boolean))).length}</div><div className="text-xs text-gray-500">Designations</div></div>
+                <div className="bg-green-50 rounded-xl p-3 text-center"><div className="text-2xl font-bold text-green-700">{Array.from(new Set(importResult.employees.map(e=>e.department).filter(Boolean))).length}</div><div className="text-xs text-gray-500">Departments</div></div>
+              </div>
+              {/* Preview table */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-400 uppercase border-b border-gray-200">Preview (first 5 rows)</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead><tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-left text-gray-500">Name</th>
+                      <th className="px-3 py-2 text-left text-gray-500">Card No</th>
+                      <th className="px-3 py-2 text-left text-gray-500">Designation</th>
+                      <th className="px-3 py-2 text-left text-gray-500">Dept</th>
+                    </tr></thead>
+                    <tbody>
+                      {importResult.employees.slice(0,5).map((e,i)=>(
+                        <tr key={i} className="border-b border-gray-50">
+                          <td className="px-3 py-2 font-medium text-gray-800">{e.name}</td>
+                          <td className="px-3 py-2 text-gray-500">{e.cardNo}</td>
+                          <td className="px-3 py-2 text-gray-600">{e.designation||<span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2 text-gray-600">{e.department||<span className="text-gray-300">—</span>}</td>
+                        </tr>
+                      ))}
+                      {importResult.employees.length>5&&<tr><td colSpan={4} className="px-3 py-2 text-center text-gray-400">…and {importResult.employees.length-5} more</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* Import mode */}
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase mb-2">How to import?</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={()=>confirmEmpImport("add")} className="bg-green-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-green-700">
+                    ➕ Add to Existing
+                    <div className="text-xs font-normal opacity-80 mt-0.5">Keep current employees</div>
+                  </button>
+                  <button onClick={()=>window.confirm("This will REPLACE all current employees. Are you sure?")&&confirmEmpImport("replace")} className="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-700">
+                    🔄 Replace All
+                    <div className="text-xs font-normal opacity-80 mt-0.5">Overwrite everything</div>
+                  </button>
+                </div>
+              </div>
+              <button onClick={()=>{setImportDialog(false);setImportResult(null);}} className="w-full text-gray-400 text-sm py-2 hover:text-gray-600">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SKILLS IMPORT DIALOG ── */}
+      {skillsImportDialog&&skillsImportResult&&(
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-auto">
+            <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><IC.matrix className="w-5 h-5 text-purple-600"/></div>
+              <div>
+                <div className="font-bold text-gray-900">Skills Ready to Import</div>
+                <div className="text-xs text-gray-400">Designation-wise skills will be applied</div>
+              </div>
+              <button onClick={()=>{setSkillsImportDialog(false);setSkillsImportResult(null);}} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600"><IC.x className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-purple-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-purple-700">{skillsImportResult.matched.length+skillsImportResult.unmatched.length}</div><div className="text-xs text-gray-400">Designations</div></div>
+                <div className="bg-green-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-green-700">{skillsImportResult.matched.length}</div><div className="text-xs text-gray-400">Matched ✓</div></div>
+                <div className="bg-blue-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-blue-700">{skillsImportResult.totalSkills}</div><div className="text-xs text-gray-400">Total Skills</div></div>
+              </div>
+
+              {/* Matched list */}
+              {skillsImportResult.matched.length>0&&(
+                <div className="border border-green-200 rounded-xl overflow-hidden">
+                  <div className="bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 uppercase border-b border-green-100">✅ Will be applied to these designations</div>
+                  {skillsImportResult.preview.map((p,i)=>(
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-50 last:border-0">
+                      <div>
+                        <div className="text-sm font-medium text-gray-800">{p.designation}</div>
+                        <div className="text-xs text-gray-400">{p.employees.length} employee{p.employees.length!==1?"s":""} will be updated</div>
+                      </div>
+                      <div className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-semibold">{p.skillCount} skills</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Unmatched */}
+              {skillsImportResult.unmatched.length>0&&(
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                  <div className="text-xs font-semibold text-yellow-700 uppercase mb-1.5">⚠️ No matching employees — will be skipped</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {skillsImportResult.unmatched.map((d,i)=><span key={i} className="text-xs bg-white border border-yellow-200 px-2 py-0.5 rounded text-yellow-700">{d}</span>)}
+                  </div>
+                </div>
+              )}
+
+              {skillsImportResult.matched.length===0&&(
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center text-sm text-red-700">
+                  No designations matched. Make sure designation names in the Excel exactly match what's in the app.
+                </div>
+              )}
+
+              {/* Mode buttons */}
+              {skillsImportResult.matched.length>0&&(
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">How to import?</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={()=>confirmSkillsImport("merge")} className="bg-green-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-green-700">
+                      ➕ Add New Skills
+                      <div className="text-xs font-normal opacity-80 mt-0.5">Keep existing skills</div>
+                    </button>
+                    <button onClick={()=>window.confirm("This will REPLACE existing skills for matched designations. Continue?")&&confirmSkillsImport("replace")} className="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-700">
+                      🔄 Replace Skills
+                      <div className="text-xs font-normal opacity-80 mt-0.5">Overwrite existing</div>
+                    </button>
+                  </div>
+                </div>
+              )}
+              <button onClick={()=>{setSkillsImportDialog(false);setSkillsImportResult(null);}} className="w-full text-gray-400 text-sm py-2 hover:text-gray-600">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
